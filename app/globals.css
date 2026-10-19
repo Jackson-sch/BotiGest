@@ -1,26 +1,571 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Apple Light System Colors */
+    --background: #f5f5f7;
+    --foreground: #1d1d1f;
+    --card: rgba(255, 255, 255, 0.82);
+    --card-solid: #ffffff;
+    --card-foreground: #1d1d1f;
+    --popover: rgba(255, 255, 255, 0.88);
+    --popover-foreground: #1d1d1f;
+
+    /* Apple System Blue & Accent */
+    --primary: #0071e3;
+    --primary-foreground: #ffffff;
+    --primary-hover: #0077ed;
+
+    /* Secondary / Muted Material Surfaces */
+    --secondary: rgba(0, 0, 0, 0.04);
+    --secondary-foreground: #1d1d1f;
+    --muted: rgba(0, 0, 0, 0.04);
+    --muted-foreground: #86868b;
+    --accent: rgba(0, 113, 227, 0.08);
+    --accent-foreground: #0071e3;
+
+    /* Status Colors (Apple Semantic Hues) */
+    --success: #34c759;
+    --success-foreground: #ffffff;
+    --warning: #ff9f0a;
+    --warning-foreground: #ffffff;
+    --destructive: #ff3b30;
+    --destructive-foreground: #ffffff;
+
+    /* Borders & Rings */
+    --border: rgba(0, 0, 0, 0.08);
+    --border-highlight: rgba(255, 255, 255, 0.6);
+    --input: rgba(0, 0, 0, 0.06);
+    --ring: rgba(0, 113, 227, 0.35);
+
+    --sidebar-bg: rgba(245, 245, 247, 0.85);
+    --sidebar-border: rgba(0, 0, 0, 0.08);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 22px;
+  }
+
+  .dark,
+  :root.dark,
+  @media (prefers-color-scheme: dark) {
+    :root,
+    & {
+      /* Apple Dark System Colors */
+      --background: #000000;
+      --foreground: #f5f5f7;
+      --card: rgba(20, 20, 22, 0.75);
+      --card-solid: #161618;
+      --card-foreground: #f5f5f7;
+      --popover: #18181b;
+      --popover-foreground: #f5f5f7;
+
+      --sidebar-bg: rgba(13, 13, 15, 0.92);
+      --sidebar-border: rgba(255, 255, 255, 0.08);
+
+      --primary: #2997ff;
+      --primary-foreground: #ffffff;
+      --primary-hover: #40a9ff;
+
+      --secondary: rgba(255, 255, 255, 0.06);
+      --secondary-foreground: #f5f5f7;
+      --muted: rgba(255, 255, 255, 0.06);
+      --muted-foreground: #98989d;
+      --accent: rgba(41, 151, 255, 0.15);
+      --accent-foreground: #2997ff;
+
+      --success: #30d158;
+      --success-foreground: #000000;
+      --warning: #ffd60a;
+      --warning-foreground: #000000;
+      --destructive: #ff453a;
+      --destructive-foreground: #ffffff;
+
+      --border: rgba(255, 255, 255, 0.1);
+      --border-highlight: rgba(255, 255, 255, 0.15);
+      --input: rgba(255, 255, 255, 0.08);
+      --ring: rgba(41, 151, 255, 0.45);
+    }
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Scrollbar Estilo Apple (macOS / iOS Overlay Floating Pill) */
+  * {
+    border-color: var(--border);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  .dark *,
+  :is(.dark *) {
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) * {
+      scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+    }
+  }
+
+  /* WebKit & Chromium (Chrome, Edge, Safari, Opera) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.38);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background-color: rgba(0, 0, 0, 0.55);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* WebKit Scrollbar en Modo Oscuro */
+  .dark ::-webkit-scrollbar-thumb,
+  :is(.dark *) ::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover,
+  :is(.dark *) ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:active,
+  :is(.dark *) ::-webkit-scrollbar-thumb:active {
+    background-color: rgba(255, 255, 255, 0.58);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) ::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.22);
+    }
+    :root:not(.light) ::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(255, 255, 255, 0.4);
+    }
+    :root:not(.light) ::-webkit-scrollbar-thumb:active {
+      background-color: rgba(255, 255, 255, 0.58);
+    }
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+      system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+  }
+
+  /* Quitar flechas/spinners de inputs numéricos para diseño limpio y moderno */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Apple Materials / Translucency Utilities */
+.apple-glass {
+  background-color: var(--card);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
 }
+
+.apple-glass-header {
+  background-color: rgba(245, 245, 247, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+}
+
+.apple-glass-sidebar {
+  background-color: var(--sidebar-bg);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+@media (prefers-color-scheme: dark) {
+  .apple-glass-header {
+    background-color: rgba(10, 10, 12, 0.85);
+  }
+  .apple-glass-sidebar {
+    background-color: rgba(13, 13, 15, 0.94);
+    border-right-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.apple-glass-sheet {
+  background-color: var(--card-solid);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.45),
+              0 0 0 1px var(--border);
+}
+
+/* Utilidades de Scroll Estilo Apple (Dropdowns, Sheets, Modales, Tablas) */
+.apple-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dark .apple-scrollbar,
+:is(.dark *) .apple-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.apple-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.apple-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.apple-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 150ms ease;
+}
+
+.apple-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.38);
+}
+
+.dark .apple-scrollbar::-webkit-scrollbar-thumb,
+:is(.dark *) .apple-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+
+.dark .apple-scrollbar::-webkit-scrollbar-thumb:hover,
+:is(.dark *) .apple-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.42);
+}
+
+/* Ocultar barra de scroll preservando la funcionalidad */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Apple Typography Tracking */
+.tracking-apple-display {
+  letter-spacing: -0.028em;
+}
+
+.tracking-apple-title {
+  letter-spacing: -0.019em;
+}
+
+.tracking-apple-body {
+  letter-spacing: -0.006em;
+}
+
+/* Apple Interactive Press State (WWDC 2018 Fluid Interfaces) */
+.apple-press-feedback {
+  transition: transform 120ms cubic-bezier(0.2, 0, 0, 1), opacity 120ms ease;
+}
+
+.apple-press-feedback:active {
+  transform: scale(0.975);
+  opacity: 0.9;
+}
+
+/* Reduced Motion & Reduced Transparency Fallbacks */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .apple-press-feedback:active {
+    transform: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .apple-glass,
+  .apple-glass-header,
+  .apple-glass-sheet {
+    background-color: var(--card-solid) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+:root {
+  --sidebar: #f4f4f6;
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #0071e3;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e4e7;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: #0071e3;
+}
+
+.dark,
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sidebar: #09090b;
+    --sidebar-foreground: #f4f4f5;
+    --sidebar-primary: #2997ff;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #18181b;
+    --sidebar-accent-foreground: #f4f4f5;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: #2997ff;
+  }
+}
+
+.dark {
+  --sidebar: #09090b;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #2997ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #18181b;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #2997ff;
+}
+
+@theme inline {
+  --color-card-solid: var(--card-solid);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ==========================================================================
+   REGLAS DE IMPRESIÓN PROFESIONAL (A4 REPORTES Y TÉRMICA 80MM)
+   ========================================================================== */
+@media print {
+  /* Ocultar elementos de navegación e interacción de pantalla */
+  header,
+  aside,
+  nav,
+  [data-sidebar],
+  [data-sonner-toaster],
+  button,
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset global de impresión */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Eliminar sombras y bordes de interfaz */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Formato A4 estándar para reportes y actas oficiales */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  /* Tablas de documentos oficiales nítidas */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  table th,
+  table td {
+    color: #000000 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Prevenir saltos de página dentro de filas o tarjetas */
+  tr,
+  .page-break-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Modo Térmico Específico: se activa cuando el body tiene la clase printing-thermal */
+  body.printing-thermal {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.printing-thermal > *:not(.ticket-termico-modal-root) {
+    display: none !important;
+  }
+
+  body.printing-thermal .ticket-termico-modal-root {
+    position: static !important;
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    inset: auto !important;
+  }
+
+  body.printing-thermal .ticket-termico-modal-root * {
+    overflow: visible !important;
+  }
+
+  body.printing-thermal .ticket-termico-modal-root > div,
+  body.printing-thermal .ticket-termico-modal-root [class*="max-w-md"] {
+    position: static !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  body.printing-thermal .ticket-termico-container {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 1mm 2mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  /* Desbordamiento visible para tablas en impresión general */
+  [data-slot="table-container"] {
+    overflow: visible !important;
+  }
+
+  /* Modo Libro Oficial de Controlados: Aislamiento total en A4 Landscape */
+  body.printing-controlados {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.printing-controlados > *:not(#print-controlados-root) {
+    display: none !important;
+  }
+
+  body.printing-controlados #print-controlados-root {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  /* Modo Estado de Cuenta Corriente: Aislamiento total en A4 Portrait */
+  body.printing-estado-cuenta {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.printing-estado-cuenta > *:not(#print-estado-cuenta-root) {
+    display: none !important;
+  }
+
+  body.printing-estado-cuenta #print-estado-cuenta-root {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+}
+
+/* Ocultar documentos de impresión oficial en pantalla regular */
+#print-controlados-root,
+#print-estado-cuenta-root {
+  display: none !important;
+}
+
+
+
