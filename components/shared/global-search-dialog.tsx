@@ -18,6 +18,7 @@ import {
   FileText,
   ShieldCheck,
   ChevronRight,
+  CornerDownLeft,
 } from 'lucide-react';
 import { formatMoney } from '@/lib/utils';
 import { buscarGlobalAction, type GlobalSearchResult } from './global-search-action';
@@ -26,6 +27,12 @@ interface GlobalSearchDialogProps {
   isOpen: boolean;
   onClose: () => void;
   initialQuery?: string;
+}
+
+interface ActionableItem {
+  id: string;
+  type: 'medicamento' | 'lote' | 'cliente' | 'modulo';
+  action: () => void;
 }
 
 const SYSTEM_MODULES = [
@@ -43,8 +50,10 @@ const SYSTEM_MODULES = [
 export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: GlobalSearchDialogProps) {
   const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const itemRefs = React.useRef<Record<number, HTMLDivElement | null>>({});
   const [query, setQuery] = React.useState(initialQuery);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [results, setResults] = React.useState<GlobalSearchResult>({
     medicamentos: [],
     lotes: [],
@@ -61,17 +70,6 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
       }, 50);
     }
   }, [isOpen, initialQuery]);
-
-  // Manejador de tecla Escape
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   // Búsqueda en servidor con debounce
   React.useEffect(() => {
@@ -92,12 +90,10 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
       } finally {
         setIsLoading(false);
       }
-    }, 200);
+    }, 180);
 
     return () => clearTimeout(timeout);
   }, [query]);
-
-  if (!isOpen) return null;
 
   const qLower = query.toLowerCase().trim();
   const modulosCoincidentes = SYSTEM_MODULES.filter(
@@ -108,21 +104,120 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
       m.path.includes(qLower)
   );
 
+  const handleNavigate = React.useCallback(
+    (path: string) => {
+      router.push(path);
+      onClose();
+    },
+    [router, onClose]
+  );
+
+  const handleVenderEnPos = React.useCallback(
+    (med: GlobalSearchResult['medicamentos'][0]) => {
+      const searchKey = med.codigo_interno || med.nombre_comercial;
+      router.push(`/pos?q=${encodeURIComponent(searchKey)}`);
+      onClose();
+    },
+    [router, onClose]
+  );
+
+  // Lista plana de elementos interactivos para navegación con teclado
+  const actionableItems = React.useMemo<ActionableItem[]>(() => {
+    const items: ActionableItem[] = [];
+
+    // 1. Medicamentos (acción primaria: ir a vender en POS)
+    results.medicamentos.forEach((m) => {
+      items.push({
+        id: `med-${m.id}`,
+        type: 'medicamento',
+        action: () => handleVenderEnPos(m),
+      });
+    });
+
+    // 2. Lotes FEFO (acción: ir a inventario)
+    results.lotes.forEach((l) => {
+      items.push({
+        id: `lote-${l.id}`,
+        type: 'lote',
+        action: () => handleNavigate('/inventario'),
+      });
+    });
+
+    // 3. Clientes (acción: ir a clientes)
+    results.clientes.forEach((c) => {
+      items.push({
+        id: `cli-${c.id}`,
+        type: 'cliente',
+        action: () => handleNavigate('/clientes'),
+      });
+    });
+
+    // 4. Módulos del Sistema
+    modulosCoincidentes.forEach((mod) => {
+      items.push({
+        id: `mod-${mod.path}`,
+        type: 'modulo',
+        action: () => handleNavigate(mod.path),
+      });
+    });
+
+    return items;
+  }, [results, modulosCoincidentes, handleVenderEnPos, handleNavigate]);
+
+  // Reiniciar índice cuando cambia la lista de resultados
+  React.useEffect(() => {
+    setSelectedIndex(0);
+  }, [actionableItems.length]);
+
+  // Auto-scroll del elemento seleccionado para mantenerlo siempre a la vista
+  React.useEffect(() => {
+    const el = itemRefs.current[selectedIndex];
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selectedIndex]);
+
+  // Manejador de teclado para ↑, ↓, Enter y Escape
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (actionableItems.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev + 1) % actionableItems.length);
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev - 1 + actionableItems.length) % actionableItems.length);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const current = actionableItems[selectedIndex];
+      if (current) {
+        current.action();
+      }
+    }
+  };
+
+  if (!isOpen) return null;
+
   const hasAnyResults =
     results.medicamentos.length > 0 ||
     results.lotes.length > 0 ||
     results.clientes.length > 0 ||
     modulosCoincidentes.length > 0;
 
-  const handleNavigate = (path: string) => {
-    router.push(path);
-    onClose();
-  };
-
-  const handleVenderEnPos = (nombre: string) => {
-    router.push(`/pos?q=${encodeURIComponent(nombre)}`);
-    onClose();
-  };
+  // Contador acumulador de índices globales para vincular cada tarjeta a actionableItems
+  let runningIndex = 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 sm:pt-20 overflow-y-auto animate-in fade-in duration-200">
@@ -141,6 +236,7 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
             placeholder="Escribe un medicamento (Panadol, Paracetamol...), lote o DNI..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="flex-1 ml-3 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
           />
 
@@ -174,15 +270,31 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
 
               <div className="space-y-1">
                 {results.medicamentos.map((med) => {
+                  const currentIndex = runningIndex++;
+                  const isSelected = selectedIndex === currentIndex;
                   const hasStock = med.stock > 0;
+
                   return (
                     <div
                       key={med.id}
-                      className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors flex items-center justify-between gap-3 border border-transparent hover:border-border/50 group"
+                      ref={(el) => {
+                        itemRefs.current[currentIndex] = el;
+                      }}
+                      onMouseEnter={() => setSelectedIndex(currentIndex)}
+                      onClick={() => handleVenderEnPos(med)}
+                      className={`p-2.5 rounded-xl transition-all flex items-center justify-between gap-3 border cursor-pointer select-none group ${
+                        isSelected
+                          ? 'bg-primary/10 border-primary/40 ring-1 ring-primary/30 shadow-xs'
+                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:border-border/50'
+                      }`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-foreground group-hover:text-primary transition-colors truncate">
+                          <span
+                            className={`text-xs font-bold transition-colors truncate ${
+                              isSelected ? 'text-primary' : 'text-foreground group-hover:text-primary'
+                            }`}
+                          >
                             {med.nombre_comercial}
                           </span>
                           <span
@@ -211,17 +323,28 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
 
                         <button
                           type="button"
-                          onClick={() => handleVenderEnPos(med.nombre_comercial)}
-                          className="h-7 px-2.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                          title="Vender en Punto de Venta"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVenderEnPos(med);
+                          }}
+                          className={`h-7 px-2.5 rounded-lg text-xs font-medium flex items-center gap-1 shadow-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-primary text-primary-foreground font-semibold'
+                              : 'bg-primary/90 hover:bg-primary text-primary-foreground'
+                          }`}
+                          title="Vender en Punto de Venta [Enter]"
                         >
                           <ShoppingCart className="h-3 w-3" />
                           <span>Vender</span>
+                          {isSelected && <CornerDownLeft className="h-3 w-3 ml-0.5 opacity-80" />}
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => handleNavigate('/productos')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNavigate('/productos');
+                          }}
                           className="h-7 px-2 rounded-lg bg-muted hover:bg-slate-200 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground text-xs transition-colors cursor-pointer"
                           title="Ver en catálogo de productos"
                         >
@@ -244,32 +367,48 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
               </div>
 
               <div className="space-y-1">
-                {results.lotes.map((lote) => (
-                  <div
-                    key={lote.id}
-                    onClick={() => handleNavigate('/inventario')}
-                    className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors flex items-center justify-between gap-3 border border-transparent hover:border-border/50 cursor-pointer"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-foreground">
-                          Lote: {lote.numero_lote}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground truncate">
-                          {lote.nombre_comercial}
-                        </span>
+                {results.lotes.map((lote) => {
+                  const currentIndex = runningIndex++;
+                  const isSelected = selectedIndex === currentIndex;
+
+                  return (
+                    <div
+                      key={lote.id}
+                      ref={(el) => {
+                        itemRefs.current[currentIndex] = el;
+                      }}
+                      onMouseEnter={() => setSelectedIndex(currentIndex)}
+                      onClick={() => handleNavigate('/inventario')}
+                      className={`p-2.5 rounded-xl transition-all flex items-center justify-between gap-3 border cursor-pointer select-none ${
+                        isSelected
+                          ? 'bg-cyan-500/10 border-cyan-500/40 ring-1 ring-cyan-500/30'
+                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:border-border/50'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-foreground">
+                            Lote: {lote.numero_lote}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground truncate">
+                            {lote.nombre_comercial}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-mono mt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-cyan-400" />
+                            Vence: {lote.fecha_vencimiento}
+                          </span>
+                          <span>Stock: {lote.cantidad} un.</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-mono mt-0.5">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-cyan-400" />
-                          Vence: {lote.fecha_vencimiento}
-                        </span>
-                        <span>Stock: {lote.cantidad} un.</span>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        {isSelected && <CornerDownLeft className="h-3.5 w-3.5 text-cyan-400" />}
+                        <ChevronRight className="h-4 w-4" />
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -283,24 +422,40 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
               </div>
 
               <div className="space-y-1">
-                {results.clientes.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => handleNavigate('/clientes')}
-                    className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors flex items-center justify-between gap-3 border border-transparent hover:border-border/50 cursor-pointer"
-                  >
-                    <div>
-                      <span className="text-xs font-semibold text-foreground block">
-                        {c.nombres}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {c.tipo_documento.toUpperCase()}: {c.numero_documento}
-                        {c.telefono ? ` · Tel: ${c.telefono}` : ''}
-                      </span>
+                {results.clientes.map((c) => {
+                  const currentIndex = runningIndex++;
+                  const isSelected = selectedIndex === currentIndex;
+
+                  return (
+                    <div
+                      key={c.id}
+                      ref={(el) => {
+                        itemRefs.current[currentIndex] = el;
+                      }}
+                      onMouseEnter={() => setSelectedIndex(currentIndex)}
+                      onClick={() => handleNavigate('/clientes')}
+                      className={`p-2.5 rounded-xl transition-all flex items-center justify-between gap-3 border cursor-pointer select-none ${
+                        isSelected
+                          ? 'bg-purple-500/10 border-purple-500/40 ring-1 ring-purple-500/30'
+                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:border-border/50'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-xs font-semibold text-foreground block">
+                          {c.nombres}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {c.tipo_documento.toUpperCase()}: {c.numero_documento}
+                          {c.telefono ? ` · Tel: ${c.telefono}` : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        {isSelected && <CornerDownLeft className="h-3.5 w-3.5 text-purple-400" />}
+                        <ChevronRight className="h-4 w-4" />
+                      </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -314,19 +469,34 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {modulosCoincidentes.map((mod) => {
+                  const currentIndex = runningIndex++;
+                  const isSelected = selectedIndex === currentIndex;
                   const Icon = mod.icon;
+
                   return (
                     <div
                       key={mod.path}
+                      ref={(el) => {
+                        itemRefs.current[currentIndex] = el;
+                      }}
+                      onMouseEnter={() => setSelectedIndex(currentIndex)}
                       onClick={() => handleNavigate(mod.path)}
-                      className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors flex items-center justify-between gap-2.5 border border-transparent hover:border-border/50 cursor-pointer"
+                      className={`p-2.5 rounded-xl transition-all flex items-center justify-between gap-2.5 border cursor-pointer select-none ${
+                        isSelected
+                          ? 'bg-primary/10 border-primary/40 ring-1 ring-primary/30 shadow-xs'
+                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-white/[0.05] hover:border-border/50'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                           <Icon className="h-3.5 w-3.5" />
                         </div>
                         <div className="min-w-0">
-                          <span className="text-xs font-semibold text-foreground block truncate">
+                          <span
+                            className={`text-xs font-semibold block truncate ${
+                              isSelected ? 'text-primary' : 'text-foreground'
+                            }`}
+                          >
                             {mod.name}
                           </span>
                           <span className="text-[10px] text-muted-foreground truncate block">
@@ -334,11 +504,14 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
                           </span>
                         </div>
                       </div>
-                      {mod.shortcut && (
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground shrink-0">
-                          {mod.shortcut}
-                        </kbd>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {mod.shortcut && (
+                          <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">
+                            {mod.shortcut}
+                          </kbd>
+                        )}
+                        {isSelected && <CornerDownLeft className="h-3 w-3 text-primary ml-1" />}
+                      </div>
                     </div>
                   );
                 })}
@@ -363,17 +536,23 @@ export function GlobalSearchDialog({ isOpen, onClose, initialQuery = '' }: Globa
         {/* Footer */}
         <div className="px-4 py-2.5 border-t border-border/60 bg-slate-50 dark:bg-[#1a1a1d] flex items-center justify-between text-[11px] text-muted-foreground">
           <div className="flex items-center gap-3">
-            <span>
-              <kbd className="px-1 py-0.2 rounded bg-muted font-mono">↑↓</kbd> navegar
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.2 rounded bg-muted font-mono">↑</kbd>
+              <kbd className="px-1 py-0.2 rounded bg-muted font-mono">↓</kbd>
+              <span>navegar</span>
             </span>
-            <span>
-              <kbd className="px-1 py-0.2 rounded bg-muted font-mono">↵</kbd> seleccionar
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.2 rounded bg-muted font-mono">↵</kbd>
+              <span>seleccionar</span>
             </span>
-            <span>
-              <kbd className="px-1 py-0.2 rounded bg-muted font-mono">Esc</kbd> cerrar
+            <span className="flex items-center gap-1">
+              <kbd className="px-1 py-0.2 rounded bg-muted font-mono">Esc</kbd>
+              <span>cerrar</span>
             </span>
           </div>
-          <span>Búsqueda Rápida Universal</span>
+          <span className="font-mono text-[10px] text-muted-foreground/80">
+            {actionableItems.length > 0 ? `${selectedIndex + 1} de ${actionableItems.length}` : ''}
+          </span>
         </div>
       </div>
     </div>

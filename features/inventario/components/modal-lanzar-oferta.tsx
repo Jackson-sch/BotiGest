@@ -71,7 +71,7 @@ export function ModalLanzarOferta({
       }
 
       toast.success(
-        `🎉 ¡Oferta del ${descuento}% aplicada! Nuevo precio POS: ${formatMoney(precioOferta)}`
+        `¡Oferta del ${descuento}% aplicada! Nuevo precio POS: ${formatMoney(precioOferta)}`
       );
       onClose();
       if (onSuccess) onSuccess();

@@ -11,5 +11,8 @@ export async function POST() {
 export async function GET(request: Request) {
   const cookieStore = await cookies();
   cookieStore.delete(AUTH_COOKIE_NAME);
-  return NextResponse.redirect(new URL('/login', request.url));
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000';
+  const cleanHost = host.startsWith('0.0.0.0') ? 'localhost:3000' : host;
+  const proto = request.headers.get('x-forwarded-proto') || (request.url.startsWith('https') ? 'https' : 'http');
+  return NextResponse.redirect(new URL('/login', `${proto}://${cleanHost}`));
 }

@@ -84,7 +84,7 @@ export function PosCheckoutModal() {
   // Inicializar monto exacto si es efectivo
   React.useEffect(() => {
     if (isCheckoutModalOpen) {
-      setMontoEfectivo(totales.total.toString());
+      setMontoEfectivo(totales.total.toFixed(2));
       setIsSuccess(false);
       setIsSubmitting(false);
     }
@@ -103,10 +103,9 @@ export function PosCheckoutModal() {
     return true;
   }, [metodo, montoEfectivo, totales.total]);
 
-  // Manejo de billetes peruanos rápidos
-  const addQuickCash = (amount: number) => {
-    const actual = parseFloat(montoEfectivo) || 0;
-    setMontoEfectivo((actual + amount).toFixed(2));
+  // Selección directa de billete peruano recibido (monto fijo)
+  const setQuickCash = (amount: number) => {
+    setMontoEfectivo(amount.toFixed(2));
   };
 
   const handleProcesarVenta = async () => {
@@ -384,6 +383,7 @@ export function PosCheckoutModal() {
                           step="0.10"
                           value={montoEfectivo}
                           onChange={(e) => setMontoEfectivo(e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           className="font-mono text-base font-semibold"
                         />
                       </div>
@@ -395,23 +395,34 @@ export function PosCheckoutModal() {
                       </div>
                     </div>
 
-                    {/* Billetes rápidos */}
-                    <div className="flex items-center gap-1.5 pt-1">
+                    {/* Billetes rápidos peruanos */}
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
                       <span className="text-[11px] text-muted-foreground mr-1">Billetes:</span>
-                      {[10, 20, 50, 100].map((billete) => (
-                        <button
-                          key={billete}
-                          type="button"
-                          onClick={() => addQuickCash(billete)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-white dark:bg-white/10 border border-border hover:border-[#0071e3] text-foreground transition-all apple-press-feedback shadow-xs"
-                        >
-                          +{billete}
-                        </button>
-                      ))}
+                      {[10, 20, 50, 100, 200].map((billete) => {
+                        const isSelected = parseFloat(montoEfectivo) === billete;
+                        return (
+                          <button
+                            key={billete}
+                            type="button"
+                            onClick={() => setQuickCash(billete)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium border transition-all apple-press-feedback shadow-xs cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#0071e3] text-white border-[#0071e3] font-bold'
+                                : 'bg-white dark:bg-white/10 border-border hover:border-[#0071e3] text-foreground'
+                            }`}
+                          >
+                            S/ {billete}
+                          </button>
+                        );
+                      })}
                       <button
                         type="button"
                         onClick={() => setMontoEfectivo(totales.total.toFixed(2))}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#0071e3]/10 text-[#0071e3] border border-[#0071e3]/20 hover:bg-[#0071e3]/20 transition-all apple-press-feedback ml-auto"
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all apple-press-feedback ml-auto cursor-pointer ${
+                          parseFloat(montoEfectivo) === totales.total
+                            ? 'bg-[#0071e3] text-white border-[#0071e3] font-bold'
+                            : 'bg-[#0071e3]/10 text-[#0071e3] border-[#0071e3]/20 hover:bg-[#0071e3]/20'
+                        }`}
                       >
                         Exacto
                       </button>

@@ -13,6 +13,7 @@ export interface VentaResumen {
   numero: number;
   correlativo: string; // ej. B001-000154
   fecha_emision: string;
+  fecha_emision_date?: string; // YYYY-MM-DD para filtrado exacto por fechas
   cliente_documento?: string | null;
   cliente_nombre: string;
   total: number;
@@ -22,6 +23,7 @@ export interface VentaResumen {
   mensaje_sunat?: string | null;
   vendedor_nombre: string;
   caja_nombre: string;
+  metodo_pago?: string;
   requiere_receta: boolean;
 }
 

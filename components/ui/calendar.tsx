@@ -49,7 +49,7 @@ function Calendar({
       className={cn("p-3 select-none", className)}
       classNames={{
         root: cn("w-fit relative", defaultClassNames.root),
-        months: "relative flex flex-col gap-2",
+        months: "relative flex flex-col sm:flex-row gap-4",
         month: "flex flex-col gap-2 relative",
         month_caption: "flex items-center justify-start px-1 h-9 relative pr-18",
         caption_label: "hidden", // Oculto porque el Select de shadcn ya muestra el valor
@@ -69,7 +69,7 @@ function Calendar({
         weekday: "text-[11px] font-medium text-muted-foreground w-8 text-center capitalize",
         weeks: "flex flex-col gap-1",
         week: "flex w-full justify-between gap-1",
-        day: "h-8 w-8 p-0 text-center text-xs relative flex items-center justify-center rounded-xl transition-all",
+        day: "h-8 w-8 p-0 text-center text-xs relative flex items-center justify-center transition-all",
         day_button: cn(
           buttonVariants({ variant: "ghost" }),
           "h-8 w-8 p-0 font-normal rounded-xl hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-[#0071e3] transition-all"
@@ -78,7 +78,9 @@ function Calendar({
         today: "[&:not([data-selected=true])_button]:ring-1 [&:not([data-selected=true])_button]:ring-[#0071e3]/60 [&:not([data-selected=true])_button]:text-[#0071e3] [&:not([data-selected=true])_button]:font-semibold",
         outside: "text-muted-foreground/35 opacity-40 aria-selected:opacity-30",
         disabled: "text-muted-foreground/30 opacity-30 cursor-not-allowed hover:bg-transparent",
-        range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+        range_start: "rounded-l-xl bg-[#0071e3]/15 [&_button]:bg-[#0071e3] [&_button]:text-white [&_button]:rounded-l-xl",
+        range_end: "rounded-r-xl bg-[#0071e3]/15 [&_button]:bg-[#0071e3] [&_button]:text-white [&_button]:rounded-r-xl",
+        range_middle: "bg-[#0071e3]/15 text-[#0071e3] dark:text-[#2997ff] [&_button]:bg-transparent [&_button]:text-[#0071e3] dark:[&_button]:text-[#2997ff] [&_button]:rounded-none rounded-none",
         hidden: "invisible",
         ...classNames,
       }}

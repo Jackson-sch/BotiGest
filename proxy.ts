@@ -2,6 +2,29 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { AUTH_COOKIE_NAME, verifySession, isRouteAllowed } from '@/lib/permissions';
 
+function getRedirectUrl(pathname: string, request: NextRequest): URL {
+  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  const referer = request.headers.get('referer');
+
+  let isHttps = forwardedProto === 'https' || request.url.startsWith('https');
+  if (!isHttps && referer && referer.startsWith('https:')) {
+    isHttps = true;
+  }
+
+  // Si estamos detrás de un túnel (tunnelmole, ngrok, localtunnel, etc.) o proxy reverso HTTPS
+  if (forwardedHost) {
+    const proto = isHttps ? 'https' : 'http';
+    const host = forwardedHost.split(',')[0].trim();
+    return new URL(pathname, `${proto}://${host}`);
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = '';
+  return url;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
@@ -14,7 +37,7 @@ export async function proxy(request: NextRequest) {
     if (isLoginPage) {
       return NextResponse.next();
     }
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = getRedirectUrl('/login', request);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -23,7 +46,7 @@ export async function proxy(request: NextRequest) {
 
   // Si el token es inválido o expiró, limpiar y mandar a login
   if (!user) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = getRedirectUrl('/login', request);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete(AUTH_COOKIE_NAME);
     return response;
@@ -31,7 +54,7 @@ export async function proxy(request: NextRequest) {
 
   // Si el usuario ya está autenticado e intenta ir a /login, redirigir al inicio
   if (isLoginPage) {
-    const homeUrl = new URL('/', request.url);
+    const homeUrl = getRedirectUrl('/', request);
     return NextResponse.redirect(homeUrl);
   }
 
@@ -43,7 +66,7 @@ export async function proxy(request: NextRequest) {
   // 3. Verificación de permisos por rol (RBAC Sanitario)
   const allowed = isRouteAllowed(pathname, user.rol);
   if (!allowed) {
-    const sinAccesoUrl = new URL('/sin-acceso', request.url);
+    const sinAccesoUrl = getRedirectUrl('/sin-acceso', request);
     sinAccesoUrl.searchParams.set('ruta', pathname);
     return NextResponse.redirect(sinAccesoUrl);
   }

@@ -473,15 +473,17 @@ export function InventarioSaludChart({ data }: { data: FefoResumenItem }) {
                       >
                         <tspan
                           x={viewBox.cx}
-                          y={viewBox.cy}
-                          className="fill-foreground text-2xl font-bold font-mono"
+                          y={(viewBox.cy || 0) - 4}
+                          className="text-2xl font-bold font-mono fill-foreground"
+                          style={{ fill: 'var(--foreground)' }}
                         >
                           {total}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
                           y={(viewBox.cy || 0) + 16}
-                          className="fill-muted-foreground text-[10px]"
+                          className="text-[11px] font-medium fill-muted-foreground"
+                          style={{ fill: 'var(--muted-foreground)' }}
                         >
                           Lotes en Stock
                         </tspan>

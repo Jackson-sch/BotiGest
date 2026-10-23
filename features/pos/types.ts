@@ -51,6 +51,7 @@ export interface PosProductItem {
   }[];
   stock_disponible_base: number;
   unidad_base: string;
+  total_vendidos?: number;
   alternativa_generica?: AlternativaGenerica;
 }
 

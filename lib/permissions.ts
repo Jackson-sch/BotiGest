@@ -96,6 +96,10 @@ export const ROUTE_PERMISSIONS: Record<string, { roles: UserRole[]; label: strin
     label: 'Configuración de la Botica',
     motivo: 'La modificación de datos fiscales SUNAT, autorizaciones sanitarias DIGEMID y parámetros de la botica exige privilegios de Administrador o Dirección Técnica.',
   },
+  '/perfil': {
+    roles: ['propietario', 'administrador', 'director_tecnico', 'cajero', 'almacenero', 'contador'],
+    label: 'Perfil & Matrícula Q.F.',
+  },
 };
 
 /**

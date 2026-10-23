@@ -7,6 +7,9 @@ import {
   Pill,
   Sparkles,
   Plus,
+  TrendingUp,
+  PackageCheck,
+  Layers,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,45 +32,104 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [selectedPresentations, setSelectedPresentations] = React.useState<Record<string, string>>({});
 
+  type CatalogTab = 'rotacion' | 'stock' | 'todos';
+  const [catalogTab, setCatalogTab] = React.useState<CatalogTab>('rotacion');
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = React.useState<number>(PAGE_SIZE);
+
   // Sincronizar parámetro de búsqueda de URL con store
   React.useEffect(() => {
     if (urlQuery && urlQuery !== searchQuery) {
       setSearchQuery(urlQuery);
+
+      // Si el producto buscado no tiene stock disponible, cambiar a 'todos' para mostrarlo
+      const qNorm = urlQuery.toLowerCase().trim();
+      const matchInAll = initialProducts.filter((p) => {
+        return (
+          p.codigo_interno.toLowerCase() === qNorm ||
+          p.nombre_comercial.toLowerCase().includes(qNorm) ||
+          p.presentaciones.some((pr) => pr.codigo_barras === qNorm)
+        );
+      });
+
+      if (matchInAll.length > 0) {
+        const hasStock = matchInAll.some((p) => p.stock_disponible_base > 0);
+        if (!hasStock) {
+          setCatalogTab('todos');
+        }
+      }
     }
-  }, [urlQuery, searchQuery, setSearchQuery]);
+  }, [urlQuery, searchQuery, setSearchQuery, initialProducts]);
 
-  const [soloConStock, setSoloConStock] = React.useState<boolean>(true);
-
-  // Total de medicamentos con stock físico disponible
+  // Contadores dinámicos
   const conStockCount = React.useMemo(
     () => initialProducts.filter((p) => p.stock_disponible_base > 0).length,
     [initialProducts]
   );
 
+  const rotacionCount = React.useMemo(() => {
+    const withSales = initialProducts.filter((p) => p.stock_disponible_base > 0 && (p.total_vendidos ?? 0) > 0).length;
+    // Si aún no hay ventas históricas en el sistema, mostrar el total con stock disponible
+    return withSales > 0 ? withSales : conStockCount;
+  }, [initialProducts, conStockCount]);
+
   // Filtrado reactivo e instantáneo sobre los productos traídos de la base de datos
   const activeQuery = searchQuery || urlQuery;
   const filteredProducts = React.useMemo(() => {
-    let list = initialProducts;
-
-    // Si el filtro "Solo con stock" está activo
-    if (soloConStock) {
-      list = list.filter((p) => p.stock_disponible_base > 0);
-    }
-
     const q = activeQuery.toLowerCase().trim();
-    if (!q) {
-      // Sin búsqueda activa: limitar a los 24 medicamentos más prioritarios con stock para máxima agilidad
-      return list.slice(0, 24);
+
+    // 1. Con búsqueda activa (texto o código de barras)
+    if (q) {
+      const matches = initialProducts.filter((p) => {
+        const matchName = p.nombre_comercial.toLowerCase().includes(q);
+        const matchGen = p.nombre_generico?.toLowerCase().includes(q) ?? false;
+        const matchCod = p.codigo_interno.toLowerCase().includes(q);
+        const matchBarcode = p.presentaciones.some((pr) => pr.codigo_barras?.includes(q));
+        return matchName || matchGen || matchCod || matchBarcode;
+      });
+
+      // Ordenar: primero los con stock disponible, luego mayor rotación, luego alfabético
+      return matches.sort((a, b) => {
+        const stockA = a.stock_disponible_base > 0 ? 1 : 0;
+        const stockB = b.stock_disponible_base > 0 ? 1 : 0;
+        if (stockB !== stockA) return stockB - stockA;
+        const salesDiff = (b.total_vendidos || 0) - (a.total_vendidos || 0);
+        if (salesDiff !== 0) return salesDiff;
+        return a.nombre_comercial.localeCompare(b.nombre_comercial);
+      });
     }
 
-    return list.filter((p) => {
-      const matchName = p.nombre_comercial.toLowerCase().includes(q);
-      const matchGen = p.nombre_generico?.toLowerCase().includes(q) ?? false;
-      const matchCod = p.codigo_interno.toLowerCase().includes(q);
-      const matchBarcode = p.presentaciones.some((pr) => pr.codigo_barras?.includes(q));
-      return matchName || matchGen || matchCod || matchBarcode;
+    // 2. Sin búsqueda activa: filtrar según pestaña seleccionada
+    if (catalogTab === 'rotacion') {
+      const withStock = initialProducts.filter((p) => p.stock_disponible_base > 0);
+      return withStock.sort((a, b) => {
+        const salesDiff = (b.total_vendidos || 0) - (a.total_vendidos || 0);
+        if (salesDiff !== 0) return salesDiff;
+        return a.nombre_comercial.localeCompare(b.nombre_comercial);
+      });
+    }
+
+    if (catalogTab === 'stock') {
+      return initialProducts
+        .filter((p) => p.stock_disponible_base > 0)
+        .sort((a, b) => a.nombre_comercial.localeCompare(b.nombre_comercial));
+    }
+
+    // 'todos': Todo el catálogo, con stock disponible primero y luego agotados
+    return [...initialProducts].sort((a, b) => {
+      const stockA = a.stock_disponible_base > 0 ? 1 : 0;
+      const stockB = b.stock_disponible_base > 0 ? 1 : 0;
+      if (stockB !== stockA) return stockB - stockA;
+      return a.nombre_comercial.localeCompare(b.nombre_comercial);
     });
-  }, [activeQuery, initialProducts, soloConStock]);
+  }, [activeQuery, initialProducts, catalogTab]);
+
+  // Renderizado progresivo (chunks de 24) para mantener la UI ágil incluso con cientos o miles de productos
+  const displayedProducts = React.useMemo(
+    () => filteredProducts.slice(0, visibleCount),
+    [filteredProducts, visibleCount]
+  );
+  const hasMore = visibleCount < filteredProducts.length;
 
   // Foco automático al montar el componente POS y atajo F2
   React.useEffect(() => {
@@ -85,7 +147,7 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Integración de Escáner Físico USB / Bluetooth
+  // Integración de Escáner Físico USB / Bluetooth (Lectura de pistola por ráfagas)
   const handleBarcodeScan = React.useCallback(
     (barcode: string) => {
       let matchedProduct: PosProductItem | undefined;
@@ -105,17 +167,10 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
         }
       }
 
-      // Si no hubo coincidencia exacta de código, pero hay un único medicamento en pantalla
-      if (!matchedProduct && filteredProducts.length === 1) {
-        const single = filteredProducts[0];
-        matchedProduct = single;
-        matchedPresId = single.presentaciones.find((pr) => pr.es_default)?.id || single.presentaciones[0]?.id;
-      }
-
       if (matchedProduct && matchedPresId) {
         if (matchedProduct.stock_disponible_base <= 0) {
           playScannerBeep(false);
-          toast.warning(`⚠️ "${matchedProduct.nombre_comercial}" no tiene stock físico disponible.`);
+          toast.warning(`"${matchedProduct.nombre_comercial}" no tiene stock físico disponible.`);
           searchInputRef.current?.select();
           return;
         }
@@ -123,7 +178,7 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
         playScannerBeep(true);
         addItem(matchedProduct, matchedPresId);
         const presObj = matchedProduct.presentaciones.find((pr) => pr.id === matchedPresId);
-        toast.success(`⚡ Escaneado: ${matchedProduct.nombre_comercial} (${presObj?.nombre || 'Unidad'})`);
+        toast.success(`Escaneado: ${matchedProduct.nombre_comercial} (${presObj?.nombre || 'Unidad'})`);
         
         // Limpiar búsqueda y mantener foco listo para el siguiente producto
         setSearchQuery('');
@@ -131,14 +186,102 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
         setTimeout(() => searchInputRef.current?.focus(), 50);
       } else {
         playScannerBeep(false);
-        toast.error(`Código o medicamento no reconocido: ${barcode}`);
+        toast.error(`Código de barras no registrado: ${barcode}`);
         searchInputRef.current?.select();
       }
     },
-    [initialProducts, filteredProducts, addItem, setSearchQuery, setUrlQuery]
+    [initialProducts, addItem, setSearchQuery, setUrlQuery]
   );
 
   useBarcodeScanner({ onScan: handleBarcodeScan });
+
+  // Manejador cuando el usuario presiona Enter en el input de búsqueda
+  const handleInputEnter = (val: string) => {
+    const q = val.trim();
+    if (!q) return;
+
+    // 1. Coincidencia exacta por código de barras
+    for (const p of initialProducts) {
+      const pres = p.presentaciones.find((pr) => pr.codigo_barras === q);
+      if (pres) {
+        if (p.stock_disponible_base <= 0) {
+          playScannerBeep(false);
+          toast.warning(`"${p.nombre_comercial}" no tiene stock físico disponible.`);
+          return;
+        }
+        playScannerBeep(true);
+        addItem(p, pres.id);
+        toast.success(`Agregado: ${p.nombre_comercial} (${pres.nombre})`);
+        setSearchQuery('');
+        setUrlQuery(null);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+        return;
+      }
+    }
+
+    // 2. Coincidencia exacta por código interno (ej. MED-001)
+    const exactCode = initialProducts.find(
+      (p) => p.codigo_interno.toLowerCase() === q.toLowerCase()
+    );
+    if (exactCode) {
+      if (exactCode.stock_disponible_base <= 0) {
+        setCatalogTab('todos');
+        setVisibleCount(PAGE_SIZE);
+        toast.warning(`"${exactCode.nombre_comercial}" no tiene stock físico disponible.`);
+        return;
+      }
+      playScannerBeep(true);
+      const defaultPresId = exactCode.presentaciones.find((pr) => pr.es_default)?.id || exactCode.presentaciones[0]?.id;
+      addItem(exactCode, defaultPresId);
+      toast.success(`Agregado: ${exactCode.nombre_comercial}`);
+      setSearchQuery('');
+      setUrlQuery(null);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+      return;
+    }
+
+    // 3. Si hay exactamente 1 producto visible en el catálogo filtrado
+    if (filteredProducts.length === 1) {
+      const single = filteredProducts[0];
+      if (single.stock_disponible_base <= 0) {
+        toast.warning(`"${single.nombre_comercial}" no tiene stock físico disponible.`);
+        return;
+      }
+      playScannerBeep(true);
+      const defaultPresId = single.presentaciones.find((pr) => pr.es_default)?.id || single.presentaciones[0]?.id;
+      addItem(single, defaultPresId);
+      toast.success(`Agregado: ${single.nombre_comercial}`);
+      setSearchQuery('');
+      setUrlQuery(null);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+      return;
+    }
+
+    // 4. Si hay varios resultados en el catálogo (ej. "paracetamol" o "panadol")
+    if (filteredProducts.length > 1) {
+      // Dejar los resultados en pantalla para que el cajero elija la presentación
+      return;
+    }
+
+    // 5. Si hay 0 resultados visibles
+    if (filteredProducts.length === 0) {
+      const matchAgotado = initialProducts.find(
+        (p) =>
+          p.nombre_comercial.toLowerCase().includes(q.toLowerCase()) ||
+          p.codigo_interno.toLowerCase() === q.toLowerCase()
+      );
+
+      if (matchAgotado && catalogTab !== 'todos') {
+        setCatalogTab('todos');
+        setVisibleCount(PAGE_SIZE);
+        toast.info(`"${matchAgotado.nombre_comercial}" no tiene stock físico disponible.`);
+        return;
+      }
+
+      playScannerBeep(false);
+      toast.error(`No se encontraron medicamentos para "${q}".`);
+    }
+  };
 
   const handleSelectPresentation = (productId: string, presId: string) => {
     setSelectedPresentations((prev) => ({ ...prev, [productId]: presId }));
@@ -160,6 +303,7 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
   const handleSearchChange = (val: string) => {
     setSearchQuery(val);
     setUrlQuery(val || null);
+    setVisibleCount(PAGE_SIZE);
   };
 
   return (
@@ -177,11 +321,8 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
             onChange={(e) => handleSearchChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                const val = searchQuery.trim();
-                if (val) {
-                  e.preventDefault();
-                  handleBarcodeScan(val);
-                }
+                e.preventDefault();
+                handleInputEnter(searchQuery);
               }
             }}
             className="pl-10 pr-24 h-12 text-sm rounded-2xl apple-glass shadow-sm"
@@ -209,40 +350,68 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
         )}
       </div>
 
-      {/* Sub-barra: Segmented Control Con Stock / Todo el Catálogo */}
+      {/* Sub-barra: Segmented Control Con Stock / Más Vendidos / Todo el Catálogo */}
       <div className="flex items-center justify-between gap-3 text-xs flex-wrap px-0.5">
         <div className="flex items-center gap-1 p-0.5 bg-sidebar/80 dark:bg-white/[0.04] border border-border/60 rounded-xl shadow-xs">
           <button
             type="button"
-            onClick={() => setSoloConStock(true)}
+            onClick={() => {
+              setCatalogTab('rotacion');
+              setVisibleCount(PAGE_SIZE);
+            }}
             className={`h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer ${
-              soloConStock
+              catalogTab === 'rotacion'
                 ? 'bg-background text-foreground font-semibold shadow-xs border border-border/40'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span className="h-2 w-2 rounded-full bg-[#34c759]" />
-            <span>Disponibles con Stock ({conStockCount})</span>
+            <TrendingUp className="h-3.5 w-3.5 text-amber-500" />
+            <span>Más Vendidos ({rotacionCount})</span>
           </button>
           <button
             type="button"
-            onClick={() => setSoloConStock(false)}
+            onClick={() => {
+              setCatalogTab('stock');
+              setVisibleCount(PAGE_SIZE);
+            }}
             className={`h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer ${
-              !soloConStock
+              catalogTab === 'stock'
                 ? 'bg-background text-foreground font-semibold shadow-xs border border-border/40'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
+            <PackageCheck className="h-3.5 w-3.5 text-[#34c759]" />
+            <span>Con Stock ({conStockCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCatalogTab('todos');
+              setVisibleCount(PAGE_SIZE);
+            }}
+            className={`h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer ${
+              catalogTab === 'todos'
+                ? 'bg-background text-foreground font-semibold shadow-xs border border-border/40'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
             <span>Todo el Catálogo ({initialProducts.length})</span>
           </button>
         </div>
 
         <span className="text-[11px] text-muted-foreground font-medium">
           {!activeQuery ? (
-            soloConStock ? (
-              <span className="text-[#34c759] font-medium">● Mostrando catálogo con stock disponible</span>
+            catalogTab === 'rotacion' ? (
+              <span className="text-amber-600 dark:text-amber-400 font-medium">
+                ● Alta rotación con stock ({displayedProducts.length} de {filteredProducts.length})
+              </span>
+            ) : catalogTab === 'stock' ? (
+              <span className="text-[#34c759] font-medium">
+                ● Catálogo con stock ({displayedProducts.length} de {filteredProducts.length})
+              </span>
             ) : (
-              'Mostrando todo el catálogo'
+              `Todo el catálogo (${displayedProducts.length} de {filteredProducts.length})`
             )
           ) : (
             `${filteredProducts.length} resultado(s) para "${activeQuery}"`
@@ -256,20 +425,23 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 rounded-2xl apple-glass border border-dashed border-border gap-2">
             <Pill className="h-10 w-10 text-muted-foreground/50 mb-1" />
             <p className="text-sm font-medium text-foreground">
-              {soloConStock
+              {catalogTab !== 'todos'
                 ? 'No se encontraron productos con stock disponible'
                 : 'No se encontraron medicamentos'}
             </p>
             <p className="text-xs text-muted-foreground max-w-sm">
-              {soloConStock
-                ? 'El producto podría estar agotado en este momento.'
+              {catalogTab !== 'todos'
+                ? 'El producto podría estar agotado en este momento o sin ventas registradas.'
                 : 'Verifica el nombre o código de barras ingresado.'}
             </p>
-            {soloConStock && (
+            {catalogTab !== 'todos' && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSoloConStock(false)}
+                onClick={() => {
+                  setCatalogTab('todos');
+                  setVisibleCount(PAGE_SIZE);
+                }}
                 className="mt-2 text-xs rounded-xl border-dashed"
               >
                 Buscar en todo el catálogo (incluyendo agotados)
@@ -277,8 +449,9 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
-            {filteredProducts.map((product) => {
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+            {displayedProducts.map((product) => {
               const activePresId =
                 selectedPresentations[product.id] ||
                 product.presentaciones.find((p) => p.es_default)?.id ||
@@ -302,11 +475,19 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
                   <div className="space-y-2">
                     {/* Header del producto */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-sm tracking-apple-title text-foreground group-hover:text-[#0071e3] transition-colors">
-                          {product.nombre_comercial}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-medium">
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-sm tracking-apple-title text-foreground group-hover:text-[#0071e3] transition-colors truncate">
+                            {product.nombre_comercial}
+                          </span>
+                          {product.total_vendidos && product.total_vendidos > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25 shrink-0">
+                              <TrendingUp className="h-2.5 w-2.5" />
+                              <span>{product.total_vendidos} vend.</span>
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium truncate">
                           {product.nombre_generico} · {product.concentracion}
                         </span>
                       </div>
@@ -418,7 +599,25 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
               );
             })}
           </div>
-        )}
+
+          {/* Botón de Cargar Más para catálogos extensos (+200 productos) */}
+          {hasMore && (
+            <div className="pt-3 pb-6 flex flex-col items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                className="rounded-xl px-5 h-9 text-xs font-semibold border-border/70 shadow-xs hover:bg-accent apple-press-feedback transition-all cursor-pointer"
+              >
+                Cargar más productos ({displayedProducts.length} de {filteredProducts.length})
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Presiona F2 o escribe en el buscador para localizar cualquier producto de inmediato
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       </div>
     </div>
   );

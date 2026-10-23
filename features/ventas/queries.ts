@@ -13,6 +13,7 @@ export async function obtenerHistorialVentas(): Promise<VentaCompleta[]> {
       v.numero,
       v.serie || '-' || lpad(v.numero::text, 6, '0') as correlativo,
       to_char(v.fecha_emision, 'DD/MM/YYYY HH24:MI') as fecha_emision,
+      to_char(v.fecha_emision, 'YYYY-MM-DD') as fecha_emision_date,
       cl.numero_documento as cliente_documento,
       coalesce(cl.nombres, 'Clientes Varios') as cliente_nombre,
       v.total::numeric as total,
@@ -22,6 +23,7 @@ export async function obtenerHistorialVentas(): Promise<VentaCompleta[]> {
       ce.mensaje_sunat,
       perf.nombres || ' ' || perf.apellidos as vendedor_nombre,
       c.nombre as caja_nombre,
+      coalesce(v.metodo_pago, 'efectivo') as metodo_pago,
       v.requiere_receta,
       coalesce(
         (
@@ -43,7 +45,7 @@ export async function obtenerHistorialVentas(): Promise<VentaCompleta[]> {
         ), '[]'::json
       ) as items,
       json_build_array(
-        json_build_object('metodo', 'efectivo', 'monto', v.total::numeric)
+        json_build_object('metodo', coalesce(v.metodo_pago, 'efectivo'), 'monto', v.total::numeric)
       ) as pagos,
       case 
         when r.id is not null then
@@ -84,6 +86,7 @@ export async function obtenerHistorialVentas(): Promise<VentaCompleta[]> {
       numero: Number(r.numero),
       correlativo: r.correlativo,
       fecha_emision: r.fecha_emision,
+      fecha_emision_date: r.fecha_emision_date,
       cliente_documento: r.cliente_documento,
       cliente_nombre: r.cliente_nombre,
       total: Number(r.total),
@@ -93,6 +96,7 @@ export async function obtenerHistorialVentas(): Promise<VentaCompleta[]> {
       mensaje_sunat: r.mensaje_sunat,
       vendedor_nombre: r.vendedor_nombre,
       caja_nombre: r.caja_nombre,
+      metodo_pago: r.metodo_pago || 'efectivo',
       requiere_receta: Boolean(r.requiere_receta),
       items: Array.isArray(r.items) ? r.items : [],
       pagos: Array.isArray(r.pagos) ? r.pagos : [],

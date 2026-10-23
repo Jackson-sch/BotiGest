@@ -45,6 +45,7 @@ const ROUTE_INFO: Record<string, { title: string; category: string }> = {
   '/reportes': { title: 'Reportes DIGEMID & SUNAT', category: 'Regulatorio & SUNAT' },
   '/usuarios': { title: 'Personal, Sedes & Cajas', category: 'Administración' },
   '/configuracion': { title: 'Configuración Botica', category: 'Administración' },
+  '/perfil': { title: 'Perfil & Matrícula Q.F.', category: 'Personal Farmacéutico' },
   '/sin-acceso': { title: 'Módulo Restringido', category: 'Seguridad' },
 };
 
@@ -55,25 +56,16 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
   const [searchDialogOpen, setSearchDialogOpen] = React.useState(false);
   const [headerQuery, setHeaderQuery] = React.useState('');
-
-  // En la pantalla de login, no mostrar la barra lateral ni la cabecera
-  if (pathname === '/login') {
-    return <main className="min-h-screen bg-sidebar flex flex-col justify-center">{children}</main>;
-  }
-
-  const currentRoute =
-    ROUTE_INFO[pathname] ||
-    (pathname.startsWith('/productos/')
-      ? { title: 'Ficha de Medicamento', category: 'Catálogo Maestro' }
-      : { title: 'BotiGest', category: 'Farmacia' });
-
   const [mounted, setMounted] = React.useState(false);
+
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
   // Listener Global de Atajos de Teclado (F4, F8, F9, F7, F1, Ctrl+K)
   React.useEffect(() => {
+    if (pathname === '/login') return;
+
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // F4: Acceso directo al Punto de Venta desde cualquier módulo
       if (e.key === 'F4') {
@@ -129,6 +121,17 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [pathname, router, canAccess]);
+
+  // En la pantalla de login, no mostrar la barra lateral ni la cabecera
+  if (pathname === '/login') {
+    return <main className="min-h-screen bg-sidebar flex flex-col justify-center">{children}</main>;
+  }
+
+  const currentRoute =
+    ROUTE_INFO[pathname] ||
+    (pathname.startsWith('/productos/')
+      ? { title: 'Ficha de Medicamento', category: 'Catálogo Maestro' }
+      : { title: 'BotiGest', category: 'Farmacia' });
 
   const showPosButton = mounted && pathname !== '/pos' && canAccess('/pos');
 

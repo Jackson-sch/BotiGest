@@ -237,12 +237,12 @@ export async function registrarVentaAction(input: RegistrarVentaInput): Promise<
         tenant_id, sucursal_id, caja_id, turno_id, cliente_id, vendedor_id,
         tipo_comprobante, serie, numero, fecha_emision, moneda,
         subtotal_gravado, subtotal_exonerado, subtotal_inafecto, igv, descuento_total, total,
-        estado, requiere_receta
+        estado, requiere_receta, metodo_pago
       ) values (
         $1, $2, $3, $4, $5, $6,
         $7, $8, $9, now(), 'PEN',
         $10, $11, 0, $12, 0, $13,
-        'completada', $14
+        'completada', $14, $15
       ) returning id`,
       [
         tenantId,
@@ -259,6 +259,7 @@ export async function registrarVentaAction(input: RegistrarVentaInput): Promise<
         totalIgv,
         totalVenta,
         Boolean(validation.data.receta),
+        validation.data.pagos[0]?.metodo || 'efectivo',
       ]
     );
 

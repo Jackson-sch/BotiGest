@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { logoutAction } from "@/app/login/actions"
 import {
@@ -121,13 +122,17 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator className="bg-sidebar-border" />
             <DropdownMenuGroup>
-              <DropdownMenuItem className="text-xs cursor-pointer py-2">
-                <UserCheck className="size-4 text-muted-foreground" />
-                <span>Perfil & Matrícula Q.F.</span>
+              <DropdownMenuItem asChild className="text-xs cursor-pointer py-2">
+                <Link href="/perfil">
+                  <UserCheck className="size-4 text-purple-400" />
+                  <span className="font-medium text-foreground">Perfil & Matrícula Q.F.</span>
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs cursor-pointer py-2">
-                <Settings className="size-4 text-muted-foreground" />
-                <span>Configuración de Sede</span>
+              <DropdownMenuItem asChild className="text-xs cursor-pointer py-2">
+                <Link href="/configuracion">
+                  <Settings className="size-4 text-muted-foreground" />
+                  <span>Configuración de Sede</span>
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator className="bg-sidebar-border" />

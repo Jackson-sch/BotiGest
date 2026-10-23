@@ -32,6 +32,15 @@ export async function obtenerProductosPos(sucursalId?: string): Promise<PosProdu
       )::integer as stock_disponible_base,
       coalesce(
         (
+          select sum(vi.cantidad * vi.factor_base)
+            from public.venta_items vi
+            join public.ventas v on v.id = vi.venta_id
+           where vi.producto_id = p.id
+             and v.estado = 'completada'
+        ), 0
+      )::integer as total_vendidos,
+      coalesce(
+        (
           select json_agg(
             json_build_object(
               'id', pp.id,
@@ -70,12 +79,16 @@ export async function obtenerProductosPos(sucursalId?: string): Promise<PosProdu
         tipo_afectacion_igv: r.tipo_afectacion_igv,
         unidad_base: r.unidad_base,
         stock_disponible_base: Number(r.stock_disponible_base),
+        total_vendidos: Number(r.total_vendidos || 0),
         presentaciones: Array.isArray(r.presentaciones) ? r.presentaciones : [],
       }))
       .sort((a, b) => {
         // Priorizar medicamentos con stock físico disponible
         const stockDiff = (b.stock_disponible_base > 0 ? 1 : 0) - (a.stock_disponible_base > 0 ? 1 : 0);
         if (stockDiff !== 0) return stockDiff;
+        // Priorizar mayor rotación / más vendidos históricos
+        const salesDiff = (b.total_vendidos || 0) - (a.total_vendidos || 0);
+        if (salesDiff !== 0) return salesDiff;
         return a.nombre_comercial.localeCompare(b.nombre_comercial);
       });
 
