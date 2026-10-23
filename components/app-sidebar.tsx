@@ -26,6 +26,7 @@ import {
 import { NavMain, type NavMainGroup } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { BotiGestIcon } from "@/components/ui/botigest-logo"
 import {
   Sidebar,
   SidebarContent,
@@ -225,12 +226,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:p-0"
                 >
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/20">
-                    <Pill className="size-4" />
-                  </div>
+                  <BotiGestIcon size={32} className="rounded-lg shadow-sm" />
                   <div className="grid flex-1 text-left text-xs leading-tight">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate font-bold text-foreground">BotiGest</span>
+                      <span className="truncate font-bold text-foreground tracking-tight">
+                        Boti<span className="text-primary">Gest</span>
+                      </span>
                       <span className="text-[10px] font-semibold uppercase px-1 py-0.2 rounded bg-primary/20 text-primary border border-primary/30">
                         Botica
                       </span>

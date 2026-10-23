@@ -4,6 +4,7 @@ import * as React from 'react';
 import { WifiOff, RefreshCw, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { BotiGestIcon } from '@/components/ui/botigest-logo';
 
 export default function OfflinePage() {
   const [isRetrying, setIsRetrying] = React.useState(false);
@@ -18,8 +19,11 @@ export default function OfflinePage() {
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-6 text-center">
       <div className="w-full max-w-md p-8 rounded-3xl apple-glass border border-white/[0.08] shadow-2xl flex flex-col items-center gap-5">
-        <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-          <WifiOff className="h-8 w-8" />
+        <div className="flex items-center gap-3">
+          <BotiGestIcon size={44} className="shadow-md" />
+          <div className="h-11 w-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+            <WifiOff className="h-5 w-5" />
+          </div>
         </div>
 
         <div className="space-y-1.5">

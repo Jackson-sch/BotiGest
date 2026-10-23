@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Download, WifiOff, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { BotiGestIcon } from '@/components/ui/botigest-logo';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -113,9 +114,7 @@ export function PwaManager() {
           aria-label="Instalación de aplicación BotiGest"
           className="fixed bottom-4 right-4 z-50 max-w-sm p-4 rounded-3xl apple-glass border border-white/[0.12] shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 flex items-center gap-3.5"
         >
-          <div className="h-10 w-10 rounded-2xl bg-[#0071e3] flex items-center justify-center text-white shrink-0 shadow-md">
-            <Download className="h-5 w-5" />
-          </div>
+          <BotiGestIcon size={40} className="shadow-md" />
           <div className="flex-1 min-w-0">
             <h2 className="text-xs font-semibold text-foreground tracking-tight">
               Instalar BotiGest

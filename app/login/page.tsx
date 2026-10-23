@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
 import {
-  Pill,
   ShieldCheck,
   ThermometerSnowflake,
   Receipt,
@@ -8,6 +7,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { LoginForm } from './login-form';
+import { BotiGestLogo } from '@/components/ui/botigest-logo';
 
 export const metadata: Metadata = {
   title: 'Iniciar Sesión · BotiGest',
@@ -26,22 +26,7 @@ export default function LoginPage() {
 
       {/* ── Barra Superior Ambiental Estilo Apple ── */}
       <header className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-b from-[#0071e3] to-[#0051a8] text-white flex items-center justify-center shadow-[0_4px_16px_rgba(0,113,227,0.3)] border border-white/20">
-            <Pill className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-[15px] tracking-[-0.02em] text-[#f5f5f7]">BotiGest</span>
-              <span className="text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-white/[0.08] text-[#a1a1a6] border border-white/[0.08]">
-                Farmacia
-              </span>
-            </div>
-            <p className="text-[11px] text-[#86868b] hidden sm:block">
-              Control Sanitario & Gestión Operativa
-            </p>
-          </div>
-        </div>
+        <BotiGestLogo size="md" showTagline={true} />
 
         {/* Badges de Estado Regulatorio Oficial */}
         <div className="flex items-center gap-2.5">
