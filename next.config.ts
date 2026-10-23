@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
   // Permite que Turbopack y Next.js sirvan HMR y assets a través de túneles
   allowedDevOrigins: tunnelOrigins,
   experimental: {
+    agentUpgrade: "security",
     agentFeedback: true,
     // Permite que los Server Actions (Login, Ventas, Perfil, etc.) se invoquen de forma segura a través del túnel
     serverActions: {
