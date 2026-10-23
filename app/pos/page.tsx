@@ -14,18 +14,23 @@ import {
 import { PosSkeleton } from '@/components/shared/module-skeletons';
 
 import { getSessionUser } from '@/lib/auth';
-import { AlertTriangle } from 'lucide-react';
+import { obtenerSucursalActivaId, obtenerSucursalActiva } from '@/lib/sucursales';
+import { AlertTriangle, Building2 } from 'lucide-react';
 
 async function PosContent() {
   const user = await getSessionUser();
+  const activeSucursalId = await obtenerSucursalActivaId();
+  const activeSucursal = await obtenerSucursalActiva();
+
   const [productos, turno] = await Promise.all([
-    obtenerProductosPos(),
-    obtenerTurnoActivo(user?.id),
+    obtenerProductosPos(activeSucursalId),
+    obtenerTurnoActivo(user?.id, activeSucursalId),
   ]);
 
   const cajeroNombre = user ? `${user.nombres} ${user.apellidos}` : (turno?.cajero_nombre || 'Cajero');
   const turnoEstado = turno ? 'Turno Abierto' : 'Sin Turno Abierto';
   const cajaNombre = turno?.caja_nombre || 'Terminal 01';
+  const sucursalNombre = activeSucursal?.nombre || turno?.sucursal_nombre || 'Sede Principal';
 
   return (
     <>
@@ -44,6 +49,10 @@ async function PosContent() {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm tracking-apple-title text-foreground">
               POS · {cajaNombre}
+            </span>
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              <span>{sucursalNombre}</span>
             </span>
             <span
               className={`text-xs px-2 py-0.5 rounded-full font-medium border ${

@@ -60,7 +60,10 @@ export interface DashboardMetrics {
   }>;
 }
 
-export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
+export async function obtenerMetricasDashboard(sucursalId?: string): Promise<DashboardMetrics> {
+  const isConsolidado = !sucursalId || sucursalId === 'todas';
+  const sucursalParam = isConsolidado ? null : sucursalId;
+
   try {
     // 1. Ventas del día con desglose de comprobantes y ticket promedio
     const ventasHoyRes = await queryOne<{
@@ -69,7 +72,8 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
       ticket_promedio: string;
       boletas: string;
       facturas: string;
-    }>(`
+    }>(
+      `
       select 
         coalesce(sum(total), 0)::text as total,
         count(*)::text as count,
@@ -78,15 +82,19 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
         count(*) filter (where tipo_comprobante = 'factura')::text as facturas
       from public.ventas
       where estado != 'anulada'
-        and fecha_emision >= date_trunc('day', now());
-    `);
+        and fecha_emision >= date_trunc('day', now())
+        and ($1::uuid is null or sucursal_id = $1::uuid);
+    `,
+      [sucursalParam]
+    );
 
     // 2. Turno de caja abierto
     const turnoActivoRes = await queryOne<{
       caja_nombre: string;
       cajero_nombre: string;
       monto_apertura: string;
-    }>(`
+    }>(
+      `
       select 
         c.nombre as caja_nombre,
         p.nombres || ' ' || left(p.apellidos, 1) || '.' as cajero_nombre,
@@ -95,9 +103,12 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
       join public.cajas c on c.id = tc.caja_id
       join public.perfiles p on p.id = tc.usuario_id
       where tc.estado = 'abierto'
+        and ($1::uuid is null or tc.sucursal_id = $1::uuid)
       order by tc.apertura_at desc
       limit 1;
-    `);
+    `,
+      [sucursalParam]
+    );
 
     // 3. Resumen FEFO segmentado (<30d crítico, 31-90d alerta, óptimos >90d, vencidos)
     const fefoRes = await queryOne<{
@@ -106,7 +117,8 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
       alerta_90d: string;
       optimos_90d: string;
       total_lotes: string;
-    }>(`
+    }>(
+      `
       select 
         count(*) filter (where l.fecha_vencimiento < current_date and sl.cantidad_base > 0)::text as vencidos,
         count(*) filter (where l.fecha_vencimiento between current_date and current_date + interval '30 days' and sl.cantidad_base > 0)::text as criticos_30d,
@@ -114,8 +126,11 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
         count(*) filter (where l.fecha_vencimiento > current_date + interval '90 days' and sl.cantidad_base > 0)::text as optimos_90d,
         count(*) filter (where sl.cantidad_base > 0)::text as total_lotes
       from public.stock_lotes sl
-      join public.lotes l on l.id = sl.lote_id;
-    `);
+      join public.lotes l on l.id = sl.lote_id
+      where ($1::uuid is null or sl.sucursal_id = $1::uuid);
+    `,
+      [sucursalParam]
+    );
 
     const vencidosCount = Number(fefoRes?.vencidos || 0);
     const criticos30dCount = Number(fefoRes?.criticos_30d || 0);
@@ -131,7 +146,8 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
     `);
 
     // 5. Ventas recientes en vivo
-    const ventasRecientesRows = await query<any>(`
+    const ventasRecientesRows = await query<any>(
+      `
       select 
         v.id,
         v.serie || '-' || lpad(v.numero::text, 8, '0') as correlativo,
@@ -143,12 +159,16 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
       from public.ventas v
       left join public.clientes c on c.id = v.cliente_id
       left join public.comprobantes_electronicos ce on ce.venta_id = v.id
+      where ($1::uuid is null or v.sucursal_id = $1::uuid)
       order by v.fecha_emision desc
       limit 5;
-    `);
+    `,
+      [sucursalParam]
+    );
 
     // 6. Top productos más vendidos
-    const topProductosRows = await query<any>(`
+    const topProductosRows = await query<any>(
+      `
       select 
         p.nombre_comercial as nombre,
         coalesce(c.nombre, 'General') as categoria,
@@ -159,13 +179,17 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
       left join public.categorias c on c.id = p.categoria_id
       join public.ventas v on v.id = vi.venta_id
       where v.estado != 'anulada'
+        and ($1::uuid is null or v.sucursal_id = $1::uuid)
       group by p.id, p.nombre_comercial, c.nombre
       order by cantidad desc
       limit 5;
-    `);
+    `,
+      [sucursalParam]
+    );
 
     // 7. Ventas de los últimos 7 días (para barras de tendencia)
-    const ventasDiasRows = await query<any>(`
+    const ventasDiasRows = await query<any>(
+      `
       with dias as (
         select (current_date - (n || ' days')::interval)::date as dia_fecha
         from generate_series(6, 0, -1) as n
@@ -179,9 +203,12 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
       left join public.ventas v 
         on date_trunc('day', v.fecha_emision) = d.dia_fecha 
        and v.estado != 'anulada'
+       and ($1::uuid is null or v.sucursal_id = $1::uuid)
       group by d.dia_fecha
       order by d.dia_fecha asc;
-    `);
+    `,
+      [sucursalParam]
+    );
 
     // 8. Cumplimiento Sanitario DIGEMID
     const controladosPendientesRes = await queryOne<{ count: string }>(`
@@ -197,7 +224,8 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
     `);
 
     // 9. Lotes prioritarios FEFO reales con cálculo de días
-    const productosDestacados = await query<any>(`
+    const productosDestacados = await query<any>(
+      `
       select 
         p.nombre_comercial as nombre,
         coalesce(pres.nombre, 'Unidad') as presentacion,
@@ -218,9 +246,12 @@ export async function obtenerMetricasDashboard(): Promise<DashboardMetrics> {
         limit 1
       ) pres on true
       where sl.cantidad_base > 0
+        and ($1::uuid is null or sl.sucursal_id = $1::uuid)
       order by l.fecha_vencimiento asc
       limit 6;
-    `);
+    `,
+      [sucursalParam]
+    );
 
     return {
       totalVentasHoy: Number(ventasHoyRes?.total || 0),

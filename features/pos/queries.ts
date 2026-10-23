@@ -6,6 +6,9 @@ import type { PosProductItem } from './types';
  * Incluye presentaciones, stock en tiempo real por lote y alternativas genéricas.
  */
 export async function obtenerProductosPos(sucursalId?: string): Promise<PosProductItem[]> {
+  const isConsolidado = !sucursalId || sucursalId === 'todas';
+  const sucursalParam = isConsolidado ? null : sucursalId;
+
   const sql = `
     select 
       p.id as producto_id,
@@ -28,6 +31,7 @@ export async function obtenerProductosPos(sucursalId?: string): Promise<PosProdu
            where sl.producto_id = p.id
              and sl.estado = 'disponible'
              and lt.fecha_vencimiento > current_date
+             and ($1::uuid is null or sl.sucursal_id = $1::uuid)
         ), 0
       )::integer as stock_disponible_base,
       coalesce(
@@ -37,6 +41,7 @@ export async function obtenerProductosPos(sucursalId?: string): Promise<PosProdu
             join public.ventas v on v.id = vi.venta_id
            where vi.producto_id = p.id
              and v.estado = 'completada'
+             and ($1::uuid is null or v.sucursal_id = $1::uuid)
         ), 0
       )::integer as total_vendidos,
       coalesce(
@@ -62,7 +67,7 @@ export async function obtenerProductosPos(sucursalId?: string): Promise<PosProdu
   `;
 
   try {
-    const rows = await query(sql);
+    const rows = await query(sql, [sucursalParam]);
 
     const mappedProducts: PosProductItem[] = rows
       .map((r) => ({
@@ -149,12 +154,18 @@ export async function obtenerProductosPos(sucursalId?: string): Promise<PosProdu
 /**
  * Consulta el estado del turno de caja activo para la terminal o usuario.
  */
-export async function obtenerTurnoActivo(usuarioId?: string) {
+export async function obtenerTurnoActivo(usuarioId?: string, sucursalId?: string) {
   const params: any[] = [];
   let userClause = '';
   if (usuarioId) {
     params.push(usuarioId);
     userClause = `and tc.usuario_id = $${params.length}`;
+  }
+
+  let sucursalClause = '';
+  if (sucursalId && sucursalId !== 'todas') {
+    params.push(sucursalId);
+    sucursalClause = `and tc.sucursal_id = $${params.length}`;
   }
 
   const sql = `
@@ -173,6 +184,7 @@ export async function obtenerTurnoActivo(usuarioId?: string) {
     join public.sucursales s on s.id = tc.sucursal_id
     where tc.estado = 'abierto'
     ${userClause}
+    ${sucursalClause}
     order by tc.apertura_at desc
     limit 1;
   `;

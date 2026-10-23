@@ -22,6 +22,7 @@ import {
   PackageCheck,
   BarChart3,
   CreditCard,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -29,6 +30,7 @@ import { Badge, CondicionVentaBadge } from '@/components/ui/badge';
 import { formatMoney } from '@/lib/utils';
 import { obtenerMetricasDashboard, type DashboardMetrics } from '@/lib/dashboard-queries';
 import { getSessionUser } from '@/lib/auth';
+import { obtenerSucursalActivaId, obtenerSucursalActiva } from '@/lib/sucursales';
 import { isRouteAllowed } from '@/lib/permissions';
 import { MetricCardsSkeleton, TableSkeleton } from '@/components/shared/module-skeletons';
 import {
@@ -310,7 +312,9 @@ function UltimosComprobantesSection({ data }: { data: DashboardMetrics }) {
 export default async function HomePage() {
   await connection();
   const user = await getSessionUser();
-  const data = await obtenerMetricasDashboard();
+  const activeSucursalId = await obtenerSucursalActivaId();
+  const activeSucursal = await obtenerSucursalActiva();
+  const data = await obtenerMetricasDashboard(activeSucursalId);
 
   const userRolLabel = user ? user.rol.toUpperCase().replace('_', ' ') : 'OPERACIONES';
   const userName = user ? user.nombres : 'Equipo Farmacéutico';
@@ -320,10 +324,15 @@ export default async function HomePage() {
       {/* Hero Adaptativo de Bienvenida Farmacéutica */}
       <section className="relative overflow-hidden rounded-3xl apple-glass p-6 border border-border shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
         <div className="space-y-2 max-w-2xl">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="h-2 w-2 rounded-full bg-[#34c759] animate-pulse" />
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">
               Botica San Martín · {userRolLabel}
+            </span>
+            <span className="text-muted-foreground/40 text-xs">·</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              <span>{activeSucursal?.nombre || 'Sede Principal'}</span>
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-apple-display text-foreground">

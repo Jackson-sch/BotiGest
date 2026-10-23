@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import {
   Store,
   ShoppingCart,
@@ -21,6 +23,8 @@ import {
   FileText,
   Truck,
   Settings,
+  Globe,
+  Layers,
 } from "lucide-react"
 
 import { NavMain, type NavMainGroup } from "@/components/nav-main"
@@ -183,8 +187,67 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { isRouteAllowed } from "@/lib/permissions"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [activeSede, setActiveSede] = React.useState(boticaData.sedes[0])
+  const router = useRouter()
   const { user: currentUser } = useAuth()
+  const [sucursales, setSucursales] = React.useState<Array<{
+    id: string;
+    nombre: string;
+    direccion: string;
+    codigo: string;
+    es_almacen: boolean;
+  }>>([])
+  const [activeSucursalId, setActiveSucursalId] = React.useState<string>('')
+  const [canSwitchBranch, setCanSwitchBranch] = React.useState<boolean>(true)
+  const [isSwitching, setIsSwitching] = React.useState<boolean>(false)
+
+  // Cargar sucursales reales y sede activa desde la API
+  React.useEffect(() => {
+    async function loadSucursales() {
+      try {
+        const res = await fetch('/api/sucursales')
+        if (res.ok) {
+          const data = await res.json()
+          setSucursales(data.sucursales || [])
+          setActiveSucursalId(data.activeSucursalId || data.sucursales?.[0]?.id || '')
+          setCanSwitchBranch(data.canSwitchBranch ?? true)
+        }
+      } catch (e) {
+        console.error('Error al cargar sucursales:', e)
+      }
+    }
+    loadSucursales()
+  }, [])
+
+  // Cambiar de sucursal activa con persistencia en cookie y recarga de datos en tiempo real
+  const handleSelectSucursal = async (id: string, nombre: string) => {
+    if (id === activeSucursalId || isSwitching) return
+    setIsSwitching(true)
+    try {
+      const res = await fetch('/api/sucursales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sucursalId: id }),
+      })
+      if (res.ok) {
+        setActiveSucursalId(id)
+        toast.success(`Cambiando a: ${nombre}`)
+        router.refresh()
+      } else {
+        const err = await res.json()
+        toast.error(err.error || 'No se pudo cambiar de sucursal')
+      }
+    } catch {
+      toast.error('Error al cambiar de sucursal')
+    } finally {
+      setIsSwitching(false)
+    }
+  }
+
+  const activeSedeName = React.useMemo(() => {
+    if (activeSucursalId === 'todas') return 'Todas las Sedes (Consolidado)'
+    const found = sucursales.find((s) => s.id === activeSucursalId)
+    return found ? found.nombre : (currentUser?.sucursalNombre || 'Sede Principal')
+  }, [activeSucursalId, sucursales, currentUser])
 
   const displayUser = currentUser
     ? {
@@ -237,7 +300,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       </span>
                     </div>
                     <span className="truncate text-muted-foreground text-[11px]">
-                      {activeSede.name}
+                      {activeSedeName}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-3.5 text-muted-foreground" />
@@ -248,31 +311,58 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 align="start"
                 sideOffset={6}
               >
-                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                  Cambiar de Establecimiento / Sucursal
+                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5 flex items-center justify-between">
+                  <span>Establecimiento Activo</span>
+                  {isSwitching && <span className="text-[10px] text-primary animate-pulse">Sincronizando...</span>}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-sidebar-border" />
-                {boticaData.sedes.map((sede) => (
+
+                {/* Opción de Consolidado (solo administradores y directores técnicos) */}
+                {canSwitchBranch && (
+                  <DropdownMenuItem
+                    onClick={() => handleSelectSucursal('todas', 'Todas las Sedes (Consolidado)')}
+                    className="flex items-start gap-2.5 px-2 py-2 cursor-pointer text-xs"
+                  >
+                    <Layers className="size-4 mt-0.5 text-primary shrink-0" />
+                    <div className="grid flex-1 leading-tight">
+                      <span className="font-semibold text-foreground">Todas las Sedes (Consolidado)</span>
+                      <span className="text-[11px] text-muted-foreground">Métricas globales de la cadena</span>
+                    </div>
+                    {activeSucursalId === 'todas' ? (
+                      <Check className="size-3.5 text-primary shrink-0 mt-0.5" />
+                    ) : null}
+                  </DropdownMenuItem>
+                )}
+
+                {/* Lista de Sucursales Reales de la Base de Datos */}
+                {sucursales.map((sede) => (
                   <DropdownMenuItem
                     key={sede.id}
-                    onClick={() => setActiveSede(sede)}
+                    disabled={!canSwitchBranch && sede.id !== activeSucursalId}
+                    onClick={() => handleSelectSucursal(sede.id, sede.nombre)}
                     className="flex items-start gap-2.5 px-2 py-2 cursor-pointer text-xs"
                   >
                     <Building2 className="size-4 mt-0.5 text-muted-foreground shrink-0" />
                     <div className="grid flex-1 leading-tight">
-                      <span className="font-semibold text-foreground">{sede.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-foreground">{sede.nombre}</span>
+                        {sede.es_almacen && (
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-muted text-muted-foreground">Almacén</span>
+                        )}
+                      </div>
                       <span className="text-[11px] text-muted-foreground">{sede.direccion}</span>
                     </div>
-                    {sede.id === activeSede.id ? (
+                    {sede.id === activeSucursalId ? (
                       <Check className="size-3.5 text-primary shrink-0 mt-0.5" />
                     ) : null}
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator className="bg-sidebar-border" />
-                <DropdownMenuItem className="text-xs text-muted-foreground cursor-pointer px-2 py-1.5">
-                  <MapPin className="size-3.5 mr-2 text-muted-foreground" />
-                  <span>Administrar Sucursales & Almacenes</span>
-                </DropdownMenuItem>
+
+                {!canSwitchBranch && (
+                  <div className="px-2 py-1.5 text-[10px] text-muted-foreground border-t border-sidebar-border/60">
+                    🔒 Sede asignada a tu turno de trabajo (no modificable por rol operativo).
+                  </div>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
