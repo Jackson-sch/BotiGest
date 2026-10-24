@@ -7,12 +7,13 @@ import { obtenerDetalleTomaInventarioConBarras } from '@/features/inventario/que
 import { ConteoAuditoriaPageView } from '@/features/inventario/components/conteo-auditoria-page-view';
 import { InventarioSkeleton } from '@/components/shared/module-skeletons';
 
-interface PageProps {
+interface ConteoContentProps {
   params: Promise<{ id: string }>;
 }
 
-async function ConteoContent({ id }: { id: string }) {
+async function ConteoContent({ params }: ConteoContentProps) {
   await connection();
+  const { id } = await params;
 
   const [toma, items] = await Promise.all([
     obtenerCabeceraTomaInventario(id),
@@ -26,12 +27,14 @@ async function ConteoContent({ id }: { id: string }) {
   return <ConteoAuditoriaPageView toma={toma} itemsIniciales={items} />;
 }
 
-export default async function ConteoPage({ params }: PageProps) {
-  const { id } = await params;
-
+export default function ConteoPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   return (
     <Suspense fallback={<div className="p-4 sm:p-6"><InventarioSkeleton /></div>}>
-      <ConteoContent id={id} />
+      <ConteoContent params={params} />
     </Suspense>
   );
 }
