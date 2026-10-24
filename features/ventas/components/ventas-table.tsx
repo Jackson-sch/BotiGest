@@ -13,6 +13,8 @@ import {
   Smartphone,
   CreditCard,
   Building2,
+  FileCode,
+  FileCheck2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -295,6 +297,26 @@ export function VentasTable({
               >
                 <Printer className="h-3.5 w-3.5" />
               </Button>
+              {v.tipo_comprobante !== 'nota_venta' && (
+                <>
+                  <a
+                    href={`/api/ventas/${v.id}/xml?format=xml`}
+                    download
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-[#0071e3] transition-colors"
+                    title="Descargar XML UBL 2.1"
+                  >
+                    <FileCode className="h-3.5 w-3.5" />
+                  </a>
+                  <a
+                    href={`/api/ventas/${v.id}/xml?format=cdr`}
+                    download
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-muted-foreground hover:text-emerald-500 transition-colors"
+                    title="Descargar Constancia CDR SUNAT"
+                  >
+                    <FileCheck2 className="h-3.5 w-3.5" />
+                  </a>
+                </>
+              )}
               {!estaAnulada && canAnular && (
                 <Button
                   size="sm"

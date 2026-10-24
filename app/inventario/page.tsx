@@ -17,6 +17,7 @@ import {
   obtenerMovimientosKardex,
 } from '@/features/inventario';
 import { obtenerTransferencias } from '@/features/inventario/queries-traslados';
+import { obtenerTomasInventario } from '@/features/inventario/queries-toma';
 import { obtenerSucursales, obtenerSucursalActivaId } from '@/lib/sucursales';
 import { InventarioSkeleton } from '@/components/shared/module-skeletons';
 import { connection } from 'next/server';
@@ -24,11 +25,12 @@ import { connection } from 'next/server';
 async function InventarioContent() {
   await connection();
   const activeSucursalId = await obtenerSucursalActivaId();
-  const [lotes, alertas, movimientos, transferencias, sucursales] = await Promise.all([
+  const [lotes, alertas, movimientos, transferencias, tomas, sucursales] = await Promise.all([
     obtenerLotesInventario(),
     obtenerAlertasFefo(),
     obtenerMovimientosKardex(),
     obtenerTransferencias(activeSucursalId),
+    obtenerTomasInventario(activeSucursalId),
     obtenerSucursales(),
   ]);
 
@@ -102,12 +104,13 @@ async function InventarioContent() {
         </Card>
       </div>
 
-      {/* Vista Modular Tabs: Lotes, Alertas, Kardex y Traslados */}
+      {/* Vista Modular Tabs: Lotes, Alertas, Kardex, Traslados y Auditoría */}
       <InventarioTabs
         lotes={lotes}
         alertas={alertas}
         movimientos={movimientos}
         transferencias={transferencias}
+        tomas={tomas}
         sucursales={sucursales}
         activeSucursalId={activeSucursalId}
       />

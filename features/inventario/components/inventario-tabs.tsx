@@ -1,20 +1,22 @@
 'use client';
 
 import * as React from 'react';
-import { Boxes, AlertTriangle, FileText, ArrowRightLeft } from 'lucide-react';
+import { Boxes, AlertTriangle, FileText, ArrowRightLeft, ClipboardCheck } from 'lucide-react';
 import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import { LotesTable } from './lotes-table';
 import { AlertasFefo } from './alertas-fefo';
 import { KardexView } from './kardex-view';
 import { TrasladosView } from './traslados-view';
+import { TomaInventarioView } from './toma-inventario-view';
 import { ModalAjusteStock } from './modal-ajuste-stock';
 import { ModalLanzarOferta } from './modal-lanzar-oferta';
 import { ModalDevolucion } from './modal-devolucion';
 import { ModalBajaSanitaria } from './modal-baja-sanitaria';
 import type { LoteConStock, MovimientoKardex, AlertaVencimientoItem } from '../types';
 import type { Transferencia } from '../queries-traslados';
+import type { TomaInventario } from '../queries-toma';
 
-const INVENTARIO_TABS = ['lotes', 'alertas', 'kardex', 'traslados'] as const;
+const INVENTARIO_TABS = ['lotes', 'alertas', 'kardex', 'traslados', 'tomas'] as const;
 type TabType = (typeof INVENTARIO_TABS)[number];
 
 interface InventarioTabsProps {
@@ -22,6 +24,7 @@ interface InventarioTabsProps {
   alertas: AlertaVencimientoItem[];
   movimientos: MovimientoKardex[];
   transferencias?: Transferencia[];
+  tomas?: TomaInventario[];
   sucursales?: { id: string; nombre: string; codigo: string }[];
   activeSucursalId?: string;
 }
@@ -31,6 +34,7 @@ export function InventarioTabs({
   alertas, 
   movimientos,
   transferencias = [],
+  tomas = [],
   sucursales = [],
   activeSucursalId = ''
 }: InventarioTabsProps) {
@@ -48,6 +52,7 @@ export function InventarioTabs({
     { id: 'alertas' as const, label: 'Alertas de Vencimiento', icon: AlertTriangle, badge: `${alertas.length}`, badgeColor: 'bg-[#ff9f0a]/15 text-[#b25e00] dark:text-[#ffd60a]' },
     { id: 'kardex' as const, label: 'Kardex Valorizado', icon: FileText, badge: `${movimientos.length}` },
     { id: 'traslados' as const, label: 'Traslados entre Sedes', icon: ArrowRightLeft, badge: `${transferencias.length}` },
+    { id: 'tomas' as const, label: 'Toma de Inventario', icon: ClipboardCheck, badge: `${tomas.length}` },
   ];
 
   return (
@@ -116,6 +121,13 @@ export function InventarioTabs({
           transferencias={transferencias}
           sucursales={sucursales}
           lotesDisponibles={lotes}
+          activeSucursalId={activeSucursalId}
+        />
+      )}
+
+      {activeTab === 'tomas' && (
+        <TomaInventarioView
+          tomas={tomas}
           activeSucursalId={activeSucursalId}
         />
       )}
