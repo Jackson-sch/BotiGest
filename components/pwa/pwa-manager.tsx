@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { Download, WifiOff, X } from 'lucide-react';
+import { Download, WifiOff, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { BotiGestIcon } from '@/components/ui/botigest-logo';
+import { sincronizarVentasPendientes } from '@/features/pos/services/offline-sync';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -44,6 +45,7 @@ export function PwaManager() {
     const handleOnline = () => {
       setIsOffline(false);
       toast.success('Conexión a internet restablecida.');
+      sincronizarVentasPendientes();
     };
 
     const handleOffline = () => {

@@ -8,17 +8,21 @@ import {
   obtenerAsientosLibroControlados,
   obtenerDirectorTecnico,
 } from '@/features/controlados';
+import { obtenerRegistrosTemperatura } from '@/features/controlados/queries-temperatura';
+import { obtenerSucursalActivaId } from '@/lib/sucursales';
 import { obtenerConfiguracionBotica } from '@/features/configuracion';
 import { ControladosSkeleton } from '@/components/shared/module-skeletons';
 import { connection } from 'next/server';
 
 async function ControladosContent() {
   await connection();
-  const [balances, asientos, directorTecnico, boticaData] = await Promise.all([
+  const activeSucursalId = await obtenerSucursalActivaId();
+  const [balances, asientos, directorTecnico, boticaData, registrosTemperatura] = await Promise.all([
     obtenerBalancesControlados(),
     obtenerAsientosLibroControlados(),
     obtenerDirectorTecnico(),
     obtenerConfiguracionBotica(),
+    obtenerRegistrosTemperatura(activeSucursalId),
   ]);
 
   const cfg = boticaData?.configuracion;
@@ -64,6 +68,8 @@ async function ControladosContent() {
       <ControladosClientView
         initialBalances={balances}
         initialAsientos={asientos}
+        registrosTemperatura={registrosTemperatura}
+        activeSucursalId={activeSucursalId}
         directorTecnico={qfNombre}
         cqfp={qfCqfp}
         establecimientoNombre={establecimientoNombre}

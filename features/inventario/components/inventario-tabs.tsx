@@ -1,27 +1,39 @@
 'use client';
 
 import * as React from 'react';
-import { Boxes, AlertTriangle, FileText } from 'lucide-react';
+import { Boxes, AlertTriangle, FileText, ArrowRightLeft } from 'lucide-react';
 import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import { LotesTable } from './lotes-table';
 import { AlertasFefo } from './alertas-fefo';
 import { KardexView } from './kardex-view';
+import { TrasladosView } from './traslados-view';
 import { ModalAjusteStock } from './modal-ajuste-stock';
 import { ModalLanzarOferta } from './modal-lanzar-oferta';
 import { ModalDevolucion } from './modal-devolucion';
 import { ModalBajaSanitaria } from './modal-baja-sanitaria';
 import type { LoteConStock, MovimientoKardex, AlertaVencimientoItem } from '../types';
+import type { Transferencia } from '../queries-traslados';
 
-const INVENTARIO_TABS = ['lotes', 'alertas', 'kardex'] as const;
+const INVENTARIO_TABS = ['lotes', 'alertas', 'kardex', 'traslados'] as const;
 type TabType = (typeof INVENTARIO_TABS)[number];
 
 interface InventarioTabsProps {
   lotes: LoteConStock[];
   alertas: AlertaVencimientoItem[];
   movimientos: MovimientoKardex[];
+  transferencias?: Transferencia[];
+  sucursales?: { id: string; nombre: string; codigo: string }[];
+  activeSucursalId?: string;
 }
 
-export function InventarioTabs({ lotes, alertas, movimientos }: InventarioTabsProps) {
+export function InventarioTabs({ 
+  lotes, 
+  alertas, 
+  movimientos,
+  transferencias = [],
+  sucursales = [],
+  activeSucursalId = ''
+}: InventarioTabsProps) {
   const [activeTab, setActiveTab] = useQueryState(
     'tab',
     parseAsStringLiteral(INVENTARIO_TABS).withDefault('lotes')
@@ -35,6 +47,7 @@ export function InventarioTabs({ lotes, alertas, movimientos }: InventarioTabsPr
     { id: 'lotes' as const, label: 'Lotes & Control FEFO', icon: Boxes, badge: `${lotes.length}` },
     { id: 'alertas' as const, label: 'Alertas de Vencimiento', icon: AlertTriangle, badge: `${alertas.length}`, badgeColor: 'bg-[#ff9f0a]/15 text-[#b25e00] dark:text-[#ffd60a]' },
     { id: 'kardex' as const, label: 'Kardex Valorizado', icon: FileText, badge: `${movimientos.length}` },
+    { id: 'traslados' as const, label: 'Traslados entre Sedes', icon: ArrowRightLeft, badge: `${transferencias.length}` },
   ];
 
   return (
@@ -96,6 +109,15 @@ export function InventarioTabs({ lotes, alertas, movimientos }: InventarioTabsPr
 
       {activeTab === 'kardex' && (
         <KardexView movimientos={movimientos} />
+      )}
+
+      {activeTab === 'traslados' && (
+        <TrasladosView 
+          transferencias={transferencias}
+          sucursales={sucursales}
+          lotesDisponibles={lotes}
+          activeSucursalId={activeSucursalId}
+        />
       )}
 
       {/* Modal de Ajuste de Stock */}

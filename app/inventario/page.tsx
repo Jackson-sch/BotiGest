@@ -16,15 +16,20 @@ import {
   obtenerAlertasFefo,
   obtenerMovimientosKardex,
 } from '@/features/inventario';
+import { obtenerTransferencias } from '@/features/inventario/queries-traslados';
+import { obtenerSucursales, obtenerSucursalActivaId } from '@/lib/sucursales';
 import { InventarioSkeleton } from '@/components/shared/module-skeletons';
 import { connection } from 'next/server';
 
 async function InventarioContent() {
   await connection();
-  const [lotes, alertas, movimientos] = await Promise.all([
+  const activeSucursalId = await obtenerSucursalActivaId();
+  const [lotes, alertas, movimientos, transferencias, sucursales] = await Promise.all([
     obtenerLotesInventario(),
     obtenerAlertasFefo(),
     obtenerMovimientosKardex(),
+    obtenerTransferencias(activeSucursalId),
+    obtenerSucursales(),
   ]);
 
   const totalStockValorizado = lotes.reduce(
@@ -97,11 +102,14 @@ async function InventarioContent() {
         </Card>
       </div>
 
-      {/* Vista Modular Tabs: Lotes, Alertas y Kardex con datos de la BD */}
+      {/* Vista Modular Tabs: Lotes, Alertas, Kardex y Traslados */}
       <InventarioTabs
         lotes={lotes}
         alertas={alertas}
         movimientos={movimientos}
+        transferencias={transferencias}
+        sucursales={sucursales}
+        activeSucursalId={activeSucursalId}
       />
     </div>
   );
