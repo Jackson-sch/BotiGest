@@ -145,6 +145,33 @@ export function MovimientoEfectivoModal({
               />
             </div>
 
+            {/* Atajos de Conceptos Rápidos para Caja Chica */}
+            {tipo === 'egreso' && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-medium text-muted-foreground">
+                  Gastos Rápidos de Caja Menor:
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Rollos de papel térmico',
+                    'Artículos de limpieza',
+                    'Pago de delivery / mensajería',
+                    'Refrigerio de turno',
+                    'Bolsas plásticas / empaque',
+                  ].map((motivoRapido) => (
+                    <button
+                      key={motivoRapido}
+                      type="button"
+                      onClick={() => setConcepto(motivoRapido)}
+                      className="text-[10px] px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors border border-border/50"
+                    >
+                      {motivoRapido}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1.5">
                 Concepto / Justificación

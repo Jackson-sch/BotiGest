@@ -12,6 +12,13 @@ import {
   Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { ProductoItem } from '../types';
 import JsBarcode from 'jsbarcode';
@@ -169,18 +176,21 @@ export function BarcodeModal({ isOpen, onClose, producto }: BarcodeModalProps) {
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Presentación
               </label>
-              <select
-                value={selectedPresId}
-                onChange={(e) => setSelectedPresId(e.target.value)}
-                className="w-full h-9 text-xs rounded-xl border border-border/80 bg-background px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="todas">Todas las presentaciones ({presentaciones.length})</option>
-                {presentaciones.map((pr) => (
-                  <option key={pr.id || pr.nombre} value={pr.id || pr.nombre}>
-                    {pr.nombre} (S/ {pr.precio_venta.toFixed(2)})
-                  </option>
-                ))}
-              </select>
+              <Select value={selectedPresId} onValueChange={setSelectedPresId}>
+                <SelectTrigger className="w-full h-9 text-xs rounded-xl border border-border/80 bg-background text-foreground">
+                  <SelectValue placeholder="Seleccionar presentación" />
+                </SelectTrigger>
+                <SelectContent className="z-[70]">
+                  <SelectItem value="todas" className="text-xs">
+                    Todas las presentaciones ({presentaciones.length})
+                  </SelectItem>
+                  {presentaciones.map((pr) => (
+                    <SelectItem key={pr.id || pr.nombre} value={pr.id || pr.nombre} className="text-xs">
+                      {pr.nombre} (S/ {pr.precio_venta.toFixed(2)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Cantidad de Etiquetas por Presentación */}

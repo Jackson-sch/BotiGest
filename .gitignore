@@ -35,7 +35,8 @@ yarn-error.log*
 !.env.example
 
 # agent metadata / ide cache
-.agents/
+.agents/*
+!.agents/skills/
 skills-lock.json
 
 # vercel

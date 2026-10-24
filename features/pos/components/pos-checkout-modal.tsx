@@ -342,6 +342,23 @@ export function PosCheckoutModal() {
                   </div>
                 )}
 
+                {/* Programa de Puntos y Fidelización */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <span>★ Puntos Botica</span>
+                    </span>
+                    <p className="text-[11px] text-muted-foreground">
+                      Esta venta acumula <strong className="text-foreground">{Math.floor(totales.total)} puntos</strong> para el cliente.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                      1 sol = 1 pt
+                    </span>
+                  </div>
+                </div>
+
                 {/* Métodos de Pago */}
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-foreground">Método de Pago</label>

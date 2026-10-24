@@ -16,7 +16,15 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { appleSprings } from '@/lib/utils';
+import { toast } from 'sonner';
 import { 
   crearTransferenciaAction, 
   despacharTransferenciaAction, 
@@ -62,15 +70,18 @@ export function TrasladosView({
     e.preventDefault();
     if (!selectedLoteId || !loteSeleccionado) {
       setErrorMsg('Seleccione un producto/lote válido.');
+      toast.error('Seleccione un producto y lote válido con existencias.');
       return;
     }
     const cantNum = parseInt(cantidad, 10);
     if (isNaN(cantNum) || cantNum <= 0) {
       setErrorMsg('La cantidad debe ser mayor a 0.');
+      toast.error('La cantidad a trasladar debe ser mayor a 0.');
       return;
     }
     if (cantNum > loteSeleccionado.cantidad_base) {
       setErrorMsg(`La cantidad excede el stock disponible (${loteSeleccionado.cantidad_base}).`);
+      toast.error(`La cantidad solicitada supera el stock disponible (${loteSeleccionado.cantidad_base}).`);
       return;
     }
 
@@ -94,36 +105,77 @@ export function TrasladosView({
         setOpenModalCrear(false);
         setSelectedLoteId('');
         setCantidad('1');
+        toast.success('Solicitud de traslado intersedes generada correctamente');
       } else {
         setErrorMsg(res.error || 'Error al crear traslado');
+        toast.error(res.error || 'Error al crear traslado');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error de conexión');
+      toast.error(err.message || 'Error de conexión');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDespachar = async (id: string) => {
-    if (!confirm('¿Confirma el despacho y salida física de mercadería de la sede origen?')) return;
+  const ejecutarDespacho = async (id: string) => {
     setIsSubmitting(true);
     try {
       const res = await despacharTransferenciaAction(id);
-      if (!res.success) alert(res.error);
+      if (res.success) {
+        toast.success('Traslado despachado: salida de stock registrada en sede origen');
+      } else {
+        toast.error(res.error || 'Error al despachar el traslado');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error de conexión al despachar traslado');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleRecepcionar = async (id: string) => {
-    if (!confirm('¿Confirma la recepción e ingreso físico de mercadería en la sede destino?')) return;
+  const handleDespachar = (id: string) => {
+    toast('¿Confirmar despacho de mercadería?', {
+      description: 'Se rebajará el stock físico del lote en la sede origen.',
+      action: {
+        label: 'Despachar',
+        onClick: () => ejecutarDespacho(id),
+      },
+      cancel: {
+        label: 'Cancelar',
+        onClick: () => {},
+      },
+    });
+  };
+
+  const ejecutarRecepcion = async (id: string) => {
     setIsSubmitting(true);
     try {
       const res = await recepcionarTransferenciaAction(id);
-      if (!res.success) alert(res.error);
+      if (res.success) {
+        toast.success('Mercadería recepcionada e ingresada al inventario de la sede destino');
+      } else {
+        toast.error(res.error || 'Error al recepcionar el traslado');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error de conexión al recepcionar traslado');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleRecepcionar = (id: string) => {
+    toast('¿Confirmar recepción de mercadería?', {
+      description: 'El lote ingresará formalmente con sus unidades al inventario de destino.',
+      action: {
+        label: 'Recepcionar',
+        onClick: () => ejecutarRecepcion(id),
+      },
+      cancel: {
+        label: 'Cancelar',
+        onClick: () => {},
+      },
+    });
   };
 
   const getEstadoBadge = (estado: Transferencia['estado']) => {
@@ -203,13 +255,15 @@ export function TrasladosView({
                     </p>
                   </div>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setOpenModalCrear(false)}
-                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.05] dark:hover:bg-white/[0.05]"
+                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
 
               <form onSubmit={handleCrear} className="space-y-4">
@@ -223,51 +277,81 @@ export function TrasladosView({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-foreground">Sede Origen (Despacho)</label>
-                    <select
-                      value={origenId}
-                      onChange={(e) => setOrigenId(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-ring"
+                    <Select
+                      value={origenId || undefined}
+                      onValueChange={(val) => {
+                        setOrigenId(val);
+                        if (destinoId === val) {
+                          const nextDestino = sucursales.find((s) => s.id !== val)?.id || '';
+                          setDestinoId(nextDestino);
+                        }
+                      }}
                     >
-                      {sucursales.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.nombre}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="h-9 rounded-xl text-xs bg-background">
+                        <SelectValue placeholder="Seleccionar origen" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        {sucursales.map((s) => (
+                          <SelectItem key={s.id} value={s.id} className="text-xs">
+                            {s.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-foreground">Sede Destino (Recepción)</label>
-                    <select
-                      value={destinoId}
-                      onChange={(e) => setDestinoId(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-ring"
+                    <Select
+                      value={destinoId || undefined}
+                      onValueChange={setDestinoId}
                     >
-                      {sucursales
-                        .filter((s) => s.id !== origenId)
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nombre}
-                          </option>
-                        ))}
-                    </select>
+                      <SelectTrigger className="h-9 rounded-xl text-xs bg-background">
+                        <SelectValue placeholder="Seleccionar destino" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        {sucursales
+                          .filter((s) => s.id !== origenId)
+                          .map((s) => (
+                            <SelectItem key={s.id} value={s.id} className="text-xs">
+                              {s.nombre}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-foreground">Fármaco / Lote a Transferir</label>
-                  <select
-                    value={selectedLoteId}
-                    onChange={(e) => setSelectedLoteId(e.target.value)}
-                    className="w-full h-9 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-ring"
+                  <Select
+                    value={selectedLoteId || undefined}
+                    onValueChange={setSelectedLoteId}
                   >
-                    <option value="">-- Seleccionar producto con stock --</option>
-                    {lotesOrigen.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.nombre_comercial} ({l.concentracion || ''}) - Lote: {l.numero_lote} (Disp: {l.cantidad_base} {l.unidad_base})
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-9 rounded-xl text-xs bg-background truncate">
+                      <SelectValue placeholder="Seleccionar producto con stock disponible" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[60] max-h-64">
+                      {lotesOrigen.length === 0 ? (
+                        <div className="p-3 text-xs text-muted-foreground text-center">
+                          No hay lotes con existencias disponibles
+                        </div>
+                      ) : (
+                        lotesOrigen.map((l) => (
+                          <SelectItem key={l.id} value={l.id} className="text-xs">
+                            <div className="flex flex-col gap-0.5 text-left">
+                              <span className="font-medium text-foreground">
+                                {l.nombre_comercial} {l.concentracion ? `(${l.concentracion})` : ''}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                Lote: <span className="font-mono">{l.numero_lote}</span> · Disp: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{l.cantidad_base} {l.unidad_base}</span> · Vence: {l.fecha_vencimiento}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

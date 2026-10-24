@@ -9,6 +9,8 @@ import {
   Building2,
   CheckCircle2,
   Plus,
+  Sparkles,
+  ClipboardList,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,16 +20,24 @@ import {
   NuevaCompraModal,
   CompraDetalleModal,
 } from './index';
+import { SugeridoComprasView } from './sugerido-compras-view';
 import type { CompraCompleta, Proveedor } from '../types';
+import type { SugeridoCompraItem } from '../queries-sugerido';
 import { recibirCompraAction } from '../actions';
 import { toast } from 'sonner';
 
 interface ComprasClientViewProps {
   initialCompras: CompraCompleta[];
   proveedores: Proveedor[];
+  sugeridos?: SugeridoCompraItem[];
 }
 
-export function ComprasClientView({ initialCompras, proveedores }: ComprasClientViewProps) {
+export function ComprasClientView({ 
+  initialCompras, 
+  proveedores,
+  sugeridos = [] 
+}: ComprasClientViewProps) {
+  const [subTab, setSubTab] = React.useState<'historial' | 'sugerido'>('historial');
   const [compras, setCompras] = React.useState<CompraCompleta[]>(initialCompras);
   const [isNuevaCompraOpen, setIsNuevaCompraOpen] = React.useState(false);
   const [selectedCompra, setSelectedCompra] = React.useState<CompraCompleta | null>(null);
@@ -158,15 +168,56 @@ export function ComprasClientView({ initialCompras, proveedores }: ComprasClient
           </Card>
         </div>
 
-        {/* Tabla de Compras */}
-        <ComprasTable
-          compras={compras}
-          onVerDetalle={(c) => {
-            const completa = compras.find((x) => x.id === c.id);
-            setSelectedCompra(completa || null);
-          }}
-          onRecibir={(c) => handleRecibir(c.id)}
-        />
+        {/* Sub-Tabs de Navegación Compras */}
+        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] border border-black/[0.04] dark:border-white/[0.06] w-full sm:w-fit">
+          <button
+            type="button"
+            onClick={() => setSubTab('historial')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-150 ${
+              subTab === 'historial'
+                ? 'bg-white dark:bg-white/10 text-[#34c759] dark:text-[#30d158] font-semibold shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ClipboardList className="h-4 w-4" />
+            <span>Facturas & Órdenes</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-black/[0.05] dark:bg-white/[0.1] text-muted-foreground">
+              {compras.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubTab('sugerido')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-150 ${
+              subTab === 'sugerido'
+                ? 'bg-white dark:bg-white/10 text-[#0071e3] dark:text-[#2997ff] font-semibold shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>Sugerido de Compra (ROP)</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-[#0071e3]/10 text-[#0071e3] dark:text-[#2997ff]">
+              {sugeridos.length}
+            </span>
+          </button>
+        </div>
+
+        {subTab === 'historial' ? (
+          <>
+            {/* Tabla de Compras */}
+            <ComprasTable
+              compras={compras}
+              onVerDetalle={(c) => {
+                const completa = compras.find((x) => x.id === c.id);
+                setSelectedCompra(completa || null);
+              }}
+              onRecibir={(c) => handleRecibir(c.id)}
+            />
+          </>
+        ) : (
+          <SugeridoComprasView sugeridos={sugeridos} />
+        )}
 
         {/* Modal de Nueva Compra */}
         <NuevaCompraModal

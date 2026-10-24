@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { appleSprings } from '@/lib/utils';
+import { toast } from 'sonner';
 import { iniciarTomaInventarioAction, aplicarTomaInventarioAction } from '../actions-toma';
 import type { TomaInventario } from '../queries-toma';
 
@@ -42,25 +43,47 @@ export function TomaInventarioView({ tomas, activeSucursalId }: TomaInventarioVi
 
       if (res.success) {
         setOpenModalCrear(false);
+        toast.success('Toma de inventario iniciada exitosamente');
       } else {
         setErrorMsg(res.error || 'Error al iniciar toma');
+        toast.error(res.error || 'Error al iniciar toma');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error de conexión');
+      toast.error(err.message || 'Error de conexión');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCerrarToma = async (tomaId: string) => {
-    if (!confirm('¿Desea cerrar la toma y consolidar los saldos en el inventario oficial?')) return;
+  const ejecutarCierreToma = async (tomaId: string) => {
     setIsSubmitting(true);
     try {
       const res = await aplicarTomaInventarioAction(tomaId, {});
-      if (!res.success) alert(res.error);
+      if (res.success) {
+        toast.success('Toma cerrada y ajustes de stock aplicados con éxito');
+      } else {
+        toast.error(res.error || 'Error al cerrar la toma de inventario');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error de conexión al cerrar toma');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCerrarToma = (tomaId: string) => {
+    toast('¿Cerrar toma y consolidar existencias?', {
+      description: 'Esta acción ajustará de forma definitiva el inventario físico oficial.',
+      action: {
+        label: 'Confirmar Cierre',
+        onClick: () => ejecutarCierreToma(tomaId),
+      },
+      cancel: {
+        label: 'Cancelar',
+        onClick: () => {},
+      },
+    });
   };
 
   return (
@@ -115,13 +138,15 @@ export function TomaInventarioView({ tomas, activeSucursalId }: TomaInventarioVi
                     </p>
                   </div>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setOpenModalCrear(false)}
-                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.05] dark:hover:bg-white/[0.05]"
+                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
 
               <form onSubmit={handleIniciarToma} className="space-y-4">

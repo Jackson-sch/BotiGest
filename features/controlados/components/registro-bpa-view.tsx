@@ -17,6 +17,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { appleSprings } from '@/lib/utils';
 import { guardarRegistroTemperaturaAction } from '../actions-temperatura';
 import type { RegistroTemperaturaHumedad } from '../queries-temperatura';
@@ -142,13 +149,15 @@ export function RegistroBpaView({ registros, activeSucursalId }: BPAViewProps) {
                     </p>
                   </div>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setOpenModal(false)}
-                  className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.05] dark:hover:bg-white/[0.05]"
+                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -162,10 +171,10 @@ export function RegistroBpaView({ registros, activeSucursalId }: BPAViewProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-foreground">Área / Zona de Control</label>
-                    <select
+                    <Select
                       value={zona}
-                      onChange={(e) => {
-                        const newZ = e.target.value as 'ambiente' | 'cadena_frio';
+                      onValueChange={(val) => {
+                        const newZ = val as 'ambiente' | 'cadena_frio';
                         setZona(newZ);
                         if (newZ === 'cadena_frio') {
                           setTemperatura('4.5');
@@ -175,23 +184,39 @@ export function RegistroBpaView({ registros, activeSucursalId }: BPAViewProps) {
                           setHumedad('58');
                         }
                       }}
-                      className="w-full h-9 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-ring"
                     >
-                      <option value="ambiente">Ambiente (&le; 30°C)</option>
-                      <option value="cadena_frio">Cadena de Frío (2°C - 8°C)</option>
-                    </select>
+                      <SelectTrigger className="w-full h-9 rounded-xl text-xs bg-background">
+                        <SelectValue placeholder="Zona de control" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        <SelectItem value="ambiente" className="text-xs">
+                          Ambiente (≤ 30°C)
+                        </SelectItem>
+                        <SelectItem value="cadena_frio" className="text-xs">
+                          Cadena de Frío (2°C - 8°C)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-foreground">Turno de Inspección</label>
-                    <select
+                    <Select
                       value={turno}
-                      onChange={(e) => setTurno(e.target.value as 'mañana' | 'tarde')}
-                      className="w-full h-9 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-ring"
+                      onValueChange={(val) => setTurno(val as 'mañana' | 'tarde')}
                     >
-                      <option value="mañana">Mañana (08:00 - 10:00)</option>
-                      <option value="tarde">Tarde (15:00 - 17:00)</option>
-                    </select>
+                      <SelectTrigger className="w-full h-9 rounded-xl text-xs bg-background">
+                        <SelectValue placeholder="Turno" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60]">
+                        <SelectItem value="mañana" className="text-xs">
+                          Mañana (08:00 - 10:00)
+                        </SelectItem>
+                        <SelectItem value="tarde" className="text-xs">
+                          Tarde (15:00 - 17:00)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

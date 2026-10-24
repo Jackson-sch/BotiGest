@@ -54,11 +54,7 @@ export function ProveedoresTable({
     }
   };
 
-  const handleEliminar = async (prov: ProveedorItem) => {
-    if (!confirm(`¿Está seguro de eliminar definitivamente a la droguería "${prov.razon_social}"?`)) {
-      return;
-    }
-
+  const ejecutarEliminar = async (prov: ProveedorItem) => {
     try {
       const res = await eliminarProveedorAction(prov.id);
       if (res.success) {
@@ -69,6 +65,20 @@ export function ProveedoresTable({
     } catch {
       toast.error('Error al procesar la eliminación');
     }
+  };
+
+  const handleEliminar = (prov: ProveedorItem) => {
+    toast(`¿Eliminar droguería "${prov.razon_social}"?`, {
+      description: 'Esta acción borrará de forma permanente el registro del proveedor.',
+      action: {
+        label: 'Eliminar',
+        onClick: () => ejecutarEliminar(prov),
+      },
+      cancel: {
+        label: 'Cancelar',
+        onClick: () => {},
+      },
+    });
   };
 
   const handleExportarExcel = async () => {
