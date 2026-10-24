@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { 
   ClipboardCheck, 
   CheckCircle2, 
@@ -14,7 +15,8 @@ import {
   ArrowRight,
   TrendingDown,
   TrendingUp,
-  Boxes
+  Boxes,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card } from '@/components/ui/card';
@@ -522,12 +524,14 @@ export function TomaInventarioView({ tomas, activeSucursalId }: TomaInventarioVi
 
                 <div className="flex items-center gap-2 self-end md:self-center">
                   <Button
+                    asChild
                     size="sm"
-                    onClick={() => abrirHojaConteo(t)}
                     className="bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs h-8 flex items-center gap-1.5 rounded-xl"
                   >
-                    <ClipboardCheck className="w-3.5 h-3.5" />
-                    {t.estado === 'en_progreso' ? 'Ingresar Conteo Físico' : 'Ver Resultados de Auditoría'}
+                    <Link href={`/inventario/tomas/${t.id}`}>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      {t.estado === 'en_progreso' ? 'Abrir Página de Conteo Rápido' : 'Ver Resultados en Página Dedicada'}
+                    </Link>
                   </Button>
                 </div>
               </div>

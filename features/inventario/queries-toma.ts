@@ -96,3 +96,32 @@ export async function obtenerDetalleTomaInventario(tomaId: string): Promise<Toma
     return [];
   }
 }
+
+export async function obtenerCabeceraTomaInventario(tomaId: string): Promise<TomaInventario | null> {
+  try {
+    const sql = `
+      SELECT 
+        t.id,
+        t.codigo,
+        t.sucursal_id,
+        s.nombre as sucursal_nombre,
+        t.estado,
+        concat(p.nombres, ' ', p.apellidos) as responsable_nombre,
+        t.observaciones,
+        to_char(t.fecha_inicio, 'YYYY-MM-DD HH24:MI') as fecha_inicio,
+        to_char(t.fecha_cierre, 'YYYY-MM-DD HH24:MI') as fecha_cierre,
+        count(ti.id)::int as total_items,
+        coalesce(sum(ti.diferencia), 0)::int as diferencia_total
+      FROM public.inventario_tomas t
+      JOIN public.sucursales s ON s.id = t.sucursal_id
+      LEFT JOIN public.perfiles p ON p.id = t.responsable_id
+      LEFT JOIN public.inventario_toma_items ti ON ti.toma_id = t.id
+      WHERE t.id = $1
+      GROUP BY t.id, s.nombre, p.nombres, p.apellidos;
+    `;
+    return await queryOne<TomaInventario>(sql, [tomaId]);
+  } catch (error) {
+    console.error('Error al obtener cabecera de toma de inventario:', error);
+    return null;
+  }
+}
