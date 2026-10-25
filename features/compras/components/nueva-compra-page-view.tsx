@@ -22,6 +22,7 @@ import {
   Layers,
   Info,
   X,
+  ListPlus,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,7 @@ import { formatMoney } from '@/lib/utils';
 import type { Proveedor, CompraItemInput } from '../types';
 import type { ProductoItem, PresentacionItem } from '@/features/productos/types';
 import { registrarCompraAction, recibirCompraAction } from '../actions';
+import { ModalSeleccionMultipleProductos } from './modal-seleccion-multiple-productos';
 import { toast } from 'sonner';
 
 interface NuevaCompraPageViewProps {
@@ -89,6 +91,7 @@ export function NuevaCompraPageView({
   const loteInputRef = React.useRef<HTMLInputElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const searchContainerRef = React.useRef<HTMLDivElement>(null);
+  const [isModalMultipleOpen, setIsModalMultipleOpen] = React.useState(false);
 
   // Cargar borrador de sugerido de compras si viene desde esa vista
   React.useEffect(() => {
@@ -568,14 +571,23 @@ export function NuevaCompraPageView({
 
           {/* Tarjeta 2: Formulario de Captura de Medicamentos y Lotes */}
           <Card className="p-5 apple-glass rounded-2xl space-y-4 border border-border relative z-20">
-            <div className="flex items-center justify-between pb-2 border-b border-border/40">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-border/40 gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <Layers className="h-4 w-4 text-emerald-500" />
                 <span>Agregar Medicamento & Lote a la Factura</span>
               </div>
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                Norma DIGEMID: Todo ítem requiere N° de Lote y Fecha de Vto.
-              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsModalMultipleOpen(true)}
+                  className="h-8 px-3 rounded-xl border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                  <span>Selección Múltiple (+ Catálogo)</span>
+                </Button>
+              </div>
             </div>
 
             {/* Selector interactivo con Buscador */}
@@ -1142,6 +1154,17 @@ export function NuevaCompraPageView({
           </Card>
         </div>
       </div>
+
+      {/* Modal de Selección Múltiple desde Catálogo */}
+      <ModalSeleccionMultipleProductos
+        isOpen={isModalMultipleOpen}
+        onClose={() => setIsModalMultipleOpen(false)}
+        productos={productos}
+        onAgregarItems={(nuevosItems) => {
+          setItems((prev) => [...prev, ...nuevosItems]);
+          toast.success(`Se agregaron ${nuevosItems.length} medicamentos a la factura.`);
+        }}
+      />
     </main>
   );
 }
