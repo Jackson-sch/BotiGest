@@ -90,6 +90,56 @@ export function NuevaCompraPageView({
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const searchContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Cargar borrador de sugerido de compras si viene desde esa vista
+  React.useEffect(() => {
+    const draft = sessionStorage.getItem('botigest_sugerido_compra_draft');
+    if (draft) {
+      try {
+        const sugeridosCargados = JSON.parse(draft) as {
+          producto_id: string;
+          nombre: string;
+          cantidad_sugerida: number;
+          costo_promedio: number;
+        }[];
+
+        const nuevosItems: CompraItemInput[] = [];
+
+        sugeridosCargados.forEach((sug) => {
+          const prodObj = productos.find((p) => p.id === sug.producto_id);
+          if (prodObj) {
+            const pres = prodObj.presentaciones.find((pr) => pr.es_default) || prodObj.presentaciones[0];
+            const factor = pres?.factor_base || 1;
+            // Fecha vencimiento estimada a 2 años por defecto
+            const fechaFutura = new Date();
+            fechaFutura.setFullYear(fechaFutura.getFullYear() + 2);
+            const vencimDefault = fechaFutura.toISOString().split('T')[0];
+
+            nuevosItems.push({
+              producto_id: prodObj.id,
+              producto_nombre: prodObj.nombre_comercial,
+              presentacion_id: pres?.id || 'pres-default',
+              presentacion_nombre: pres?.nombre || 'Unidad',
+              factor_base: factor,
+              numero_lote: 'POR-ASIGNAR',
+              fecha_vencimiento: vencimDefault,
+              cantidad: Math.max(1, Math.ceil(sug.cantidad_sugerida / factor)),
+              costo_unitario_presentacion: Number((sug.costo_promedio * factor).toFixed(2)),
+            });
+          }
+        });
+
+        if (nuevosItems.length > 0) {
+          setItems(nuevosItems);
+          toast.success(`Se agregaron automáticamente ${nuevosItems.length} fármaco(s) desde el sugerido de compras.`);
+        }
+      } catch (e) {
+        console.error('Error al parsear borrador sugerido:', e);
+      } finally {
+        sessionStorage.removeItem('botigest_sugerido_compra_draft');
+      }
+    }
+  }, [productos]);
+
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (

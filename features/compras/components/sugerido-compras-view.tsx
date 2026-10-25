@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Sparkles, 
   TrendingUp, 
@@ -9,7 +10,10 @@ import {
   ShoppingCart, 
   Plus, 
   Building2,
-  DollarSign
+  DollarSign,
+  CheckSquare,
+  Square,
+  ArrowRight
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +27,9 @@ interface SugeridoComprasViewProps {
 }
 
 export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
+  const router = useRouter();
   const [soloQuiebre, setSoloQuiebre] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState<Record<string, boolean>>({});
 
   const listaFiltrada = soloQuiebre
     ? sugeridos.filter((s) => s.stock_actual <= s.promedio_diario * 3)
@@ -31,6 +37,58 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
 
   const totalInversionEstimada = listaFiltrada.reduce((acc, s) => acc + s.inversion_estimada, 0);
   const itemsEnRiesgo = sugeridos.filter((s) => s.dias_inventario_restante < 5).length;
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const handleSelectAll = () => {
+    const todosSeleccionados = listaFiltrada.every((s) => selectedIds[s.producto_id]);
+    if (todosSeleccionados) {
+      setSelectedIds({});
+    } else {
+      const nuevo: Record<string, boolean> = {};
+      listaFiltrada.forEach((s) => {
+        nuevo[s.producto_id] = true;
+      });
+      setSelectedIds(nuevo);
+    }
+  };
+
+  const seleccionadosCount = Object.values(selectedIds).filter(Boolean).length;
+
+  const handleCrearOrdenConSeleccionados = () => {
+    const itemsAComprar = listaFiltrada
+      .filter((s) => selectedIds[s.producto_id])
+      .map((s) => ({
+        producto_id: s.producto_id,
+        nombre: s.nombre_comercial,
+        cantidad_sugerida: s.cantidad_sugerida_comprar,
+        costo_promedio: s.costo_promedio,
+      }));
+
+    if (itemsAComprar.length === 0) return;
+
+    // Guardar en sessionStorage para ser cargados en la página de nueva compra
+    sessionStorage.setItem('botigest_sugerido_compra_draft', JSON.stringify(itemsAComprar));
+    router.push('/compras/nueva?origen=sugerido');
+  };
+
+  const handleOrdenarUno = (item: SugeridoCompraItem) => {
+    const itemsAComprar = [
+      {
+        producto_id: item.producto_id,
+        nombre: item.nombre_comercial,
+        cantidad_sugerida: item.cantidad_sugerida_comprar,
+        costo_promedio: item.costo_promedio,
+      },
+    ];
+    sessionStorage.setItem('botigest_sugerido_compra_draft', JSON.stringify(itemsAComprar));
+    router.push('/compras/nueva?origen=sugerido');
+  };
 
   return (
     <div className="space-y-6">
@@ -48,24 +106,38 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSoloQuiebre(!soloQuiebre)}
-            className={`text-xs rounded-xl ${
-              soloQuiebre ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' : ''
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5 mr-1 text-rose-500" />
-            {soloQuiebre ? 'Mostrando en Riesgo' : 'Solo en Riesgo (<3d)'}
-          </Button>
+          {seleccionadosCount > 0 ? (
+            <Button
+              size="sm"
+              onClick={handleCrearOrdenConSeleccionados}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-xl flex items-center gap-1.5 shadow-sm"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>Generar Orden con ({seleccionadosCount}) seleccionados</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSoloQuiebre(!soloQuiebre)}
+                className={`text-xs rounded-xl ${
+                  soloQuiebre ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' : ''
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                {soloQuiebre ? 'Mostrando en Riesgo' : 'Solo en Riesgo (<3d)'}
+              </Button>
 
-          <Button asChild size="sm" className="bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs rounded-xl">
-            <Link href="/compras/nueva">
-              <Plus className="w-4 h-4 mr-1" />
-              Nueva Orden de Compra
-            </Link>
-          </Button>
+              <Button asChild size="sm" className="bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs rounded-xl">
+                <Link href="/compras/nueva">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Nueva Orden Manual
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -117,6 +189,20 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
           <table className="w-full text-xs">
             <thead className="bg-muted/40 text-muted-foreground border-b border-border/40">
               <tr>
+                <th className="px-3 py-2.5 text-center font-medium w-10">
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground"
+                    title="Seleccionar todos"
+                  >
+                    {listaFiltrada.length > 0 && listaFiltrada.every((s) => selectedIds[s.producto_id]) ? (
+                      <CheckSquare className="w-4 h-4 text-[#0071e3]" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-4 py-2.5 text-left font-medium">Fármaco / Presentación</th>
                 <th className="px-4 py-2.5 text-left font-medium">Laboratorio</th>
                 <th className="px-4 py-2.5 text-right font-medium">Stock Actual</th>
@@ -125,60 +211,92 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
                 <th className="px-4 py-2.5 text-right font-medium">Días Cobertura</th>
                 <th className="px-4 py-2.5 text-right font-medium text-[#0071e3] font-bold">Sugerido Comprar</th>
                 <th className="px-4 py-2.5 text-right font-medium">Inversión Est.</th>
+                <th className="px-4 py-2.5 text-center font-medium">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
               {listaFiltrada.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     No se encontraron productos que requieran reposición inmediata.
                   </td>
                 </tr>
               ) : (
-                listaFiltrada.map((item) => (
-                  <tr key={item.producto_id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <div className="font-semibold text-foreground">{item.nombre_comercial}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {item.codigo_interno} {item.concentracion ? `· ${item.concentracion}` : ''}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {item.laboratorio}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-medium">
-                      <span className={item.stock_actual <= 5 ? 'text-rose-500 font-bold' : ''}>
-                        {item.stock_actual} {item.unidad_base}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono">
-                      {item.unidades_vendidas_30d}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">
-                      {item.promedio_diario}/día
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] ${
-                          item.dias_inventario_restante < 4
-                            ? 'bg-rose-500/10 text-rose-600 border-rose-500/30'
-                            : item.dias_inventario_restante < 8
-                            ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
-                            : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
-                        }`}
-                      >
-                        {item.dias_inventario_restante} días
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-bold text-[#0071e3] dark:text-[#2997ff]">
-                      {item.cantidad_sugerida_comprar} {item.unidad_base}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono">
-                      {formatMoney(item.inversion_estimada)}
-                    </td>
-                  </tr>
-                ))
+                listaFiltrada.map((item) => {
+                  const isChecked = !!selectedIds[item.producto_id];
+                  return (
+                    <tr 
+                      key={item.producto_id} 
+                      className={`hover:bg-muted/30 transition-colors ${
+                        isChecked ? 'bg-[#0071e3]/5' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelect(item.producto_id)}
+                          className="p-1 rounded text-muted-foreground hover:text-foreground"
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 text-[#0071e3]" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="font-semibold text-foreground">{item.nombre_comercial}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          {item.codigo_interno} {item.concentracion ? `· ${item.concentracion}` : ''}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        {item.laboratorio}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono font-medium">
+                        <span className={item.stock_actual <= 5 ? 'text-rose-500 font-bold' : ''}>
+                          {item.stock_actual} {item.unidad_base}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        {item.unidades_vendidas_30d}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">
+                        {item.promedio_diario}/día
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            item.dias_inventario_restante < 4
+                              ? 'bg-rose-500/10 text-rose-600 border-rose-500/30'
+                              : item.dias_inventario_restante < 8
+                              ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+                              : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                          }`}
+                        >
+                          {item.dias_inventario_restante} días
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono font-bold text-[#0071e3] dark:text-[#2997ff]">
+                        {item.cantidad_sugerida_comprar} {item.unidad_base}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        {formatMoney(item.inversion_estimada)}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <Button
+                          size="sm"
+                          onClick={() => handleOrdenarUno(item)}
+                          className="h-7 px-2.5 text-[11px] rounded-lg bg-[#0071e3] hover:bg-[#0077ed] text-white flex items-center gap-1 mx-auto"
+                        >
+                          <ShoppingCart className="w-3 h-3" />
+                          <span>Ordenar</span>
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
