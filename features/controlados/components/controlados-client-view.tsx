@@ -7,8 +7,12 @@ import { ModalFirmaQf } from './modal-firma-qf';
 import { LibroControladosPrint } from './libro-controlados-print';
 import { RegistroBpaView } from './registro-bpa-view';
 import { ShieldCheck, Thermometer } from 'lucide-react';
+import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import type { BalanceSustanciaControlada, RegistroLibroControlado } from '../types';
 import type { RegistroTemperaturaHumedad } from '../queries-temperatura';
+
+const CONTROLADOS_TABS = ['libro', 'temperatura'] as const;
+type ControladosTabType = (typeof CONTROLADOS_TABS)[number];
 
 interface ControladosClientViewProps {
   initialBalances: BalanceSustanciaControlada[];
@@ -35,7 +39,10 @@ export function ControladosClientView({
   direccion,
   autorizacionDigemid,
 }: ControladosClientViewProps) {
-  const [subTab, setSubTab] = React.useState<'libro' | 'temperatura'>('libro');
+  const [subTab, setSubTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(CONTROLADOS_TABS).withDefault('libro')
+  );
   const [asientos, setAsientos] = React.useState<RegistroLibroControlado[]>(initialAsientos);
   const [selectedAsiento, setSelectedAsiento] = React.useState<RegistroLibroControlado | null>(null);
 

@@ -20,11 +20,15 @@ import {
   NuevaCompraModal,
   CompraDetalleModal,
 } from './index';
+import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import { SugeridoComprasView } from './sugerido-compras-view';
 import type { CompraCompleta, Proveedor } from '../types';
 import type { SugeridoCompraItem } from '../queries-sugerido';
 import { recibirCompraAction } from '../actions';
 import { toast } from 'sonner';
+
+const COMPRAS_TABS = ['historial', 'sugerido'] as const;
+type ComprasTabType = (typeof COMPRAS_TABS)[number];
 
 interface ComprasClientViewProps {
   initialCompras: CompraCompleta[];
@@ -37,7 +41,10 @@ export function ComprasClientView({
   proveedores,
   sugeridos = [] 
 }: ComprasClientViewProps) {
-  const [subTab, setSubTab] = React.useState<'historial' | 'sugerido'>('historial');
+  const [subTab, setSubTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(COMPRAS_TABS).withDefault('historial')
+  );
   const [compras, setCompras] = React.useState<CompraCompleta[]>(initialCompras);
   const [isNuevaCompraOpen, setIsNuevaCompraOpen] = React.useState(false);
   const [selectedCompra, setSelectedCompra] = React.useState<CompraCompleta | null>(null);
