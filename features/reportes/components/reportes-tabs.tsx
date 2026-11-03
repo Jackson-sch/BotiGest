@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import {
   ShieldCheck,
   Award,
@@ -18,6 +19,9 @@ import type {
   MetricasGerenciales,
 } from '../types';
 
+export const REPORTES_TABS = ['oppf', 'balance', 'sire', 'gerencial'] as const;
+export type ReportesTab = (typeof REPORTES_TABS)[number];
+
 interface ReportesTabsProps {
   oppfItems: OppfItem[];
   balanceControlados: BalanceTrimestralItem[];
@@ -31,7 +35,10 @@ export function ReportesTabs({
   sireVentas,
   metricas,
 }: ReportesTabsProps) {
-  const [activeTab, setActiveTab] = React.useState<'oppf' | 'balance' | 'sire' | 'gerencial'>('oppf');
+  const [activeTab, setActiveTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(REPORTES_TABS).withDefault('oppf')
+  );
 
   return (
     <div className="space-y-6 w-full">

@@ -27,3 +27,23 @@ export const recibirCompraSchema = z.object({
 });
 
 export type RecibirCompraInput = z.infer<typeof recibirCompraSchema>;
+
+export const anularCompraSchema = z.object({
+  compra_id: z.string().uuid({ message: 'ID de compra inválido' }),
+  motivo: z.string().min(4, { message: 'Indique un motivo de anulación válido (mín. 4 caracteres)' }),
+});
+
+export type AnularCompraInput = z.infer<typeof anularCompraSchema>;
+
+export const actualizarCompraSchema = z.object({
+  compra_id: z.string().uuid({ message: 'ID de compra inválido' }),
+  sucursal_id: z.string().uuid().optional(),
+  proveedor_id: z.string().uuid({ message: 'Proveedor requerido' }),
+  tipo_documento: z.enum(['factura', 'boleta', 'guia_remision', 'otro']),
+  serie_numero: z.string().min(3, { message: 'Número de comprobante del proveedor requerido' }),
+  fecha_emision: z.string().min(10, { message: 'Fecha de emisión requerida' }),
+  observacion: z.string().optional().nullable(),
+  items: z.array(compraItemSchema).min(1, { message: 'La compra debe contener al menos un producto' }),
+});
+
+export type ActualizarCompraInput = z.infer<typeof actualizarCompraSchema>;

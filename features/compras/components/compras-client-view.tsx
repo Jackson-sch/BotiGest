@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import {
   Boxes,
@@ -19,10 +20,11 @@ import {
   ComprasTable,
   NuevaCompraModal,
   CompraDetalleModal,
+  ModalAnularCompra,
 } from './index';
 import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import { SugeridoComprasView } from './sugerido-compras-view';
-import type { CompraCompleta, Proveedor } from '../types';
+import type { CompraCompleta, CompraResumen, Proveedor } from '../types';
 import type { SugeridoCompraItem } from '../queries-sugerido';
 import { recibirCompraAction } from '../actions';
 import { toast } from 'sonner';
@@ -41,6 +43,7 @@ export function ComprasClientView({
   proveedores,
   sugeridos = [] 
 }: ComprasClientViewProps) {
+  const router = useRouter();
   const [subTab, setSubTab] = useQueryState(
     'tab',
     parseAsStringLiteral(COMPRAS_TABS).withDefault('historial')
@@ -48,6 +51,17 @@ export function ComprasClientView({
   const [compras, setCompras] = React.useState<CompraCompleta[]>(initialCompras);
   const [isNuevaCompraOpen, setIsNuevaCompraOpen] = React.useState(false);
   const [selectedCompra, setSelectedCompra] = React.useState<CompraCompleta | null>(null);
+  const [compraParaAnular, setCompraParaAnular] = React.useState<CompraResumen | null>(null);
+
+  // Sincronizar estado local cuando initialCompras cambie por revalidación del servidor
+  React.useEffect(() => {
+    setCompras(initialCompras);
+  }, [initialCompras]);
+
+  // Al montar la vista, solicitar actualización fresca del servidor
+  React.useEffect(() => {
+    router.refresh();
+  }, [router]);
 
   const ejecutarRecepcion = async (compraId: string) => {
     try {
@@ -220,6 +234,7 @@ export function ComprasClientView({
                 setSelectedCompra(completa || null);
               }}
               onRecibir={(c) => handleRecibir(c.id)}
+              onAnular={(c) => setCompraParaAnular(c)}
             />
           </>
         ) : (
@@ -230,7 +245,9 @@ export function ComprasClientView({
         <NuevaCompraModal
           isOpen={isNuevaCompraOpen}
           onClose={() => setIsNuevaCompraOpen(false)}
-          onSuccess={() => {}}
+          onSuccess={() => {
+            router.refresh();
+          }}
         />
 
         {/* Modal de Detalle */}
@@ -239,6 +256,26 @@ export function ComprasClientView({
           isOpen={!!selectedCompra}
           onClose={() => setSelectedCompra(null)}
           onRecibir={(id) => handleRecibir(id)}
+          onAnular={(c) => setCompraParaAnular(c)}
+        />
+
+        {/* Modal de Anulación de Compra */}
+        <ModalAnularCompra
+          compra={compraParaAnular}
+          isOpen={!!compraParaAnular}
+          onClose={() => setCompraParaAnular(null)}
+          onSuccess={() => {
+            if (compraParaAnular) {
+              setCompras((prev) =>
+                prev.map((c) =>
+                  c.id === compraParaAnular.id
+                    ? { ...c, estado: 'anulada' }
+                    : c
+                )
+              );
+            }
+            router.refresh();
+          }}
         />
       </main>
   );

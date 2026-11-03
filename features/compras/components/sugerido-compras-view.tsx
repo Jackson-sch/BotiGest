@@ -4,20 +4,27 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Sparkles, 
-  TrendingUp, 
   AlertTriangle, 
   Package, 
   ShoppingCart, 
   Plus, 
   Building2,
   DollarSign,
-  CheckSquare,
-  Square,
-  ArrowRight
+  ArrowRight,
+  Filter,
+  Info
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { formatMoney } from '@/lib/utils';
 import type { SugeridoCompraItem } from '../queries-sugerido';
 import Link from 'next/link';
@@ -29,11 +36,33 @@ interface SugeridoComprasViewProps {
 export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
   const router = useRouter();
   const [soloQuiebre, setSoloQuiebre] = React.useState(false);
+  const [selectedLab, setSelectedLab] = React.useState<string>('todos');
   const [selectedIds, setSelectedIds] = React.useState<Record<string, boolean>>({});
 
-  const listaFiltrada = soloQuiebre
-    ? sugeridos.filter((s) => s.stock_actual <= s.promedio_diario * 3)
-    : sugeridos;
+  // Lista de laboratorios únicos con conteo
+  const laboratorios = React.useMemo(() => {
+    const map = new Map<string, number>();
+    sugeridos.forEach((s) => {
+      const lab = s.laboratorio || 'Varios';
+      map.set(lab, (map.get(lab) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([nombre, count]) => ({ nombre, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [sugeridos]);
+
+  // Filtrar según quiebre y laboratorio seleccionado
+  const listaFiltrada = React.useMemo(() => {
+    return sugeridos.filter((s) => {
+      if (soloQuiebre && s.stock_actual > s.promedio_diario * 3) {
+        return false;
+      }
+      if (selectedLab !== 'todos' && (s.laboratorio || 'Varios') !== selectedLab) {
+        return false;
+      }
+      return true;
+    });
+  }, [sugeridos, soloQuiebre, selectedLab]);
 
   const totalInversionEstimada = listaFiltrada.reduce((acc, s) => acc + s.inversion_estimada, 0);
   const itemsEnRiesgo = sugeridos.filter((s) => s.dias_inventario_restante < 5).length;
@@ -45,12 +74,16 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
     }));
   };
 
-  const handleSelectAll = () => {
-    const todosSeleccionados = listaFiltrada.every((s) => selectedIds[s.producto_id]);
-    if (todosSeleccionados) {
-      setSelectedIds({});
+  const handleSelectAll = (checked: boolean) => {
+    if (!checked) {
+      // Si desmarca, solo desmarcar los visibles en el filtro actual
+      const nuevo = { ...selectedIds };
+      listaFiltrada.forEach((s) => {
+        delete nuevo[s.producto_id];
+      });
+      setSelectedIds(nuevo);
     } else {
-      const nuevo: Record<string, boolean> = {};
+      const nuevo = { ...selectedIds };
       listaFiltrada.forEach((s) => {
         nuevo[s.producto_id] = true;
       });
@@ -58,14 +91,31 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
     }
   };
 
+  const seleccionadosVisibles = listaFiltrada.filter((s) => selectedIds[s.producto_id]);
   const seleccionadosCount = Object.values(selectedIds).filter(Boolean).length;
 
+  // Analizar laboratorios presentes en la selección actual
+  const laboratoriosSeleccionados = React.useMemo(() => {
+    const map = new Map<string, number>();
+    sugeridos.forEach((s) => {
+      if (selectedIds[s.producto_id]) {
+        const lab = s.laboratorio || 'Varios';
+        map.set(lab, (map.get(lab) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).map(([nombre, count]) => ({ nombre, count }));
+  }, [sugeridos, selectedIds]);
+
+  const todosSeleccionados =
+    listaFiltrada.length > 0 && listaFiltrada.every((s) => selectedIds[s.producto_id]);
+
   const handleCrearOrdenConSeleccionados = () => {
-    const itemsAComprar = listaFiltrada
+    const itemsAComprar = sugeridos
       .filter((s) => selectedIds[s.producto_id])
       .map((s) => ({
         producto_id: s.producto_id,
         nombre: s.nombre_comercial,
+        laboratorio: s.laboratorio,
         cantidad_sugerida: s.cantidad_sugerida_comprar,
         costo_promedio: s.costo_promedio,
       }));
@@ -82,6 +132,7 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
       {
         producto_id: item.producto_id,
         nombre: item.nombre_comercial,
+        laboratorio: item.laboratorio,
         cantidad_sugerida: item.cantidad_sugerida_comprar,
         costo_promedio: item.costo_promedio,
       },
@@ -92,6 +143,7 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -101,7 +153,7 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Cálculo de Punto de Reorden (ROP) y consumo promedio diario para evitar quiebres de stock.
+            Cálculo de Punto de Reorden (ROP) y rotación diaria para emitir pedidos por droguería o laboratorio.
           </p>
         </div>
 
@@ -113,7 +165,7 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-xl flex items-center gap-1.5 shadow-sm"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Generar Orden con ({seleccionadosCount}) seleccionados</span>
+              <span>Generar Orden con ({seleccionadosCount}) ítems</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           ) : (
@@ -141,6 +193,84 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
         </div>
       </div>
 
+      {/* Alerta inteligente multi-laboratorio cuando se seleccionan varios ítems */}
+      {laboratoriosSeleccionados.length > 1 && (
+        <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <Building2 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <span className="font-semibold text-amber-800 dark:text-amber-300">
+                Selección de múltiples laboratorios ({laboratoriosSeleccionados.length}):
+              </span>
+              <p className="text-amber-700/90 dark:text-amber-400/90 text-[11px] mt-0.5">
+                Ha marcado medicamentos de: {laboratoriosSeleccionados.map((l) => `${l.nombre} (${l.count})`).join(', ')}.
+                Asegúrese de que su droguería mayorista distribuya todas estas marcas o filtre por un laboratorio específico para pedidos directos.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {laboratoriosSeleccionados.slice(0, 2).map((l) => (
+              <Button
+                key={l.nombre}
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedLab(l.nombre)}
+                className="h-7 text-[11px] rounded-lg border-amber-500/30 bg-background/60 hover:bg-amber-500/20"
+              >
+                Solo {l.nombre}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filtros de la vista: Laboratorio y Quiebre */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-muted/20 border border-border/40 rounded-2xl">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-64">
+            <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+            <Select
+              value={selectedLab}
+              onValueChange={(val) => setSelectedLab(val)}
+            >
+              <SelectTrigger className="h-8 text-xs rounded-xl">
+                <SelectValue placeholder="Filtrar por Laboratorio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">
+                  Todos los Laboratorios ({sugeridos.length})
+                </SelectItem>
+                {laboratorios.map((lab) => (
+                  <SelectItem key={lab.nombre} value={lab.nombre}>
+                    {lab.nombre} ({lab.count})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedLab !== 'todos' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedLab('todos')}
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Restablecer filtro
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto justify-between sm:justify-end">
+          <span>Mostrando: <strong className="text-foreground">{listaFiltrada.length}</strong> productos</span>
+          {seleccionadosCount > 0 && (
+            <Badge variant="secondary" className="text-xs font-mono">
+              {seleccionadosCount} seleccionados en total
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Tarjetas resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-4 apple-glass space-y-1">
@@ -152,7 +282,7 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
             {listaFiltrada.length}
           </div>
           <span className="text-[11px] text-muted-foreground">
-            Fármacos con rotación activa
+            {selectedLab === 'todos' ? 'En todos los laboratorios' : `Laboratorio: ${selectedLab}`}
           </span>
         </Card>
 
@@ -190,18 +320,13 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
             <thead className="bg-muted/40 text-muted-foreground border-b border-border/40">
               <tr>
                 <th className="px-3 py-2.5 text-center font-medium w-10">
-                  <button
-                    type="button"
-                    onClick={handleSelectAll}
-                    className="p-1 rounded text-muted-foreground hover:text-foreground"
-                    title="Seleccionar todos"
-                  >
-                    {listaFiltrada.length > 0 && listaFiltrada.every((s) => selectedIds[s.producto_id]) ? (
-                      <CheckSquare className="w-4 h-4 text-[#0071e3]" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
-                  </button>
+                  <div className="flex items-center justify-center">
+                    <Checkbox
+                      checked={todosSeleccionados}
+                      onCheckedChange={(val) => handleSelectAll(!!val)}
+                      aria-label="Seleccionar todos"
+                    />
+                  </div>
                 </th>
                 <th className="px-4 py-2.5 text-left font-medium">Fármaco / Presentación</th>
                 <th className="px-4 py-2.5 text-left font-medium">Laboratorio</th>
@@ -218,7 +343,7 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
               {listaFiltrada.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
-                    No se encontraron productos que requieran reposición inmediata.
+                    No se encontraron productos que requieran reposición con los filtros actuales.
                   </td>
                 </tr>
               ) : (
@@ -232,17 +357,13 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
                       }`}
                     >
                       <td className="px-3 py-2.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelect(item.producto_id)}
-                          className="p-1 rounded text-muted-foreground hover:text-foreground"
-                        >
-                          {isChecked ? (
-                            <CheckSquare className="w-4 h-4 text-[#0071e3]" />
-                          ) : (
-                            <Square className="w-4 h-4" />
-                          )}
-                        </button>
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => handleToggleSelect(item.producto_id)}
+                            aria-label={`Seleccionar ${item.nombre_comercial}`}
+                          />
+                        </div>
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-foreground">{item.nombre_comercial}</div>
@@ -250,8 +371,16 @@ export function SugeridoComprasView({ sugeridos }: SugeridoComprasViewProps) {
                           {item.codigo_interno} {item.concentracion ? `· ${item.concentracion}` : ''}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
-                        {item.laboratorio}
+                      <td className="px-4 py-2.5">
+                        <Badge 
+                          variant="outline" 
+                          className="text-[10px] font-normal cursor-pointer hover:bg-muted/50 border-border/60 transition-colors"
+                          onClick={() => setSelectedLab(item.laboratorio || 'Varios')}
+                          title="Haga clic para filtrar por este laboratorio"
+                        >
+                          <Building2 className="w-2.5 h-2.5 mr-1 opacity-70" />
+                          {item.laboratorio || 'Varios'}
+                        </Badge>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono font-medium">
                         <span className={item.stock_actual <= 5 ? 'text-rose-500 font-bold' : ''}>

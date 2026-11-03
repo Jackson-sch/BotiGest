@@ -83,6 +83,7 @@ export async function abrirTurnoAction(input: AbrirTurnoInput): Promise<CajaActi
     );
 
     revalidatePath('/caja');
+    revalidatePath('/caja', 'page');
     revalidatePath('/pos');
     revalidatePath('/');
     return { success: true, turnoId: res?.id };
@@ -134,6 +135,7 @@ export async function registrarMovimientoEfectivoAction(
     );
 
     revalidatePath('/caja');
+    revalidatePath('/caja', 'page');
     return { success: true, turnoId: val.data.turno_id };
   } catch (error: any) {
     console.error('Error al registrar movimiento:', error);
@@ -332,7 +334,9 @@ export async function cerrarTurnoAction(input: CerrarTurnoInput): Promise<CajaAc
     );
 
     revalidatePath('/caja');
+    revalidatePath('/caja', 'page');
     revalidatePath('/caja/arqueo');
+    revalidatePath('/caja/arqueo', 'page');
     revalidatePath('/pos');
     revalidatePath('/');
 

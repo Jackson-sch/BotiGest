@@ -40,6 +40,7 @@ export async function obtenerHistorialCompras(): Promise<CompraCompleta[]> {
               'id', ci.id,
               'producto_id', ci.producto_id,
               'producto_nombre', prod.nombre_comercial,
+              'laboratorio_nombre', coalesce(lab.nombre, 'Sin Laboratorio'),
               'presentacion_id', ci.presentacion_id,
               'presentacion_nombre', pres.nombre,
               'factor_base', ci.factor_base,
@@ -55,6 +56,7 @@ export async function obtenerHistorialCompras(): Promise<CompraCompleta[]> {
           )
           from public.compra_items ci
           join public.productos prod on prod.id = ci.producto_id
+          left join public.laboratorios lab on lab.id = prod.laboratorio_id
           join public.producto_presentaciones pres on pres.id = ci.presentacion_id
           where ci.compra_id = c.id
         ), '[]'::json
@@ -130,3 +132,101 @@ export async function obtenerProveedoresActivos(): Promise<Proveedor[]> {
     return [];
   }
 }
+
+/**
+ * Obtiene el detalle completo de una compra por su ID para visualización o edición.
+ */
+export async function obtenerCompraPorId(compraId: string): Promise<CompraCompleta | null> {
+  const sql = `
+    select 
+      c.id,
+      c.sucursal_id,
+      s.nombre as sucursal_nombre,
+      c.proveedor_id,
+      p.ruc as proveedor_ruc,
+      p.razon_social as proveedor_nombre,
+      c.tipo_documento,
+      c.serie_numero,
+      to_char(c.fecha_emision, 'YYYY-MM-DD') as fecha_emision,
+      case 
+        when c.fecha_recepcion is not null then to_char(c.fecha_recepcion, 'YYYY-MM-DD')
+        else null 
+      end as fecha_recepcion,
+      c.subtotal::numeric as subtotal,
+      c.igv::numeric as igv,
+      c.total::numeric as total,
+      c.estado,
+      'Almacén Central' as usuario_nombre,
+      c.observacion,
+      coalesce(
+        (
+          select count(*)::integer 
+          from public.compra_items ci 
+          where ci.compra_id = c.id
+        ), 0
+      ) as items_count,
+      coalesce(
+        (
+          select json_agg(
+            json_build_object(
+              'id', ci.id,
+              'producto_id', ci.producto_id,
+              'producto_nombre', prod.nombre_comercial,
+              'laboratorio_nombre', coalesce(lab.nombre, 'Sin Laboratorio'),
+              'presentacion_id', ci.presentacion_id,
+              'presentacion_nombre', pres.nombre,
+              'factor_base', ci.factor_base,
+              'numero_lote', ci.numero_lote,
+              'fecha_vencimiento', to_char(ci.fecha_vencimiento, 'YYYY-MM-DD'),
+              'cantidad', ci.cantidad,
+              'cantidad_base', (ci.cantidad * ci.factor_base),
+              'costo_unitario_presentacion', ci.costo_unitario_presentacion::numeric,
+              'costo_unitario_base', (ci.costo_unitario_presentacion / ci.factor_base)::numeric,
+              'total_item', (ci.cantidad * ci.costo_unitario_presentacion)::numeric,
+              'lote_id', ci.lote_id
+            ) order by ci.id asc
+          )
+          from public.compra_items ci
+          join public.productos prod on prod.id = ci.producto_id
+          left join public.laboratorios lab on lab.id = prod.laboratorio_id
+          join public.producto_presentaciones pres on pres.id = ci.presentacion_id
+          where ci.compra_id = c.id
+        ), '[]'::json
+      ) as items
+    from public.compras c
+    join public.sucursales s on s.id = c.sucursal_id
+    join public.proveedores p on p.id = c.proveedor_id
+    where c.id = $1
+    limit 1;
+  `;
+
+  try {
+    const row = await queryOne(sql, [compraId]);
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      sucursal_id: row.sucursal_id,
+      sucursal_nombre: row.sucursal_nombre,
+      proveedor_id: row.proveedor_id,
+      proveedor_ruc: row.proveedor_ruc,
+      proveedor_nombre: row.proveedor_nombre,
+      tipo_documento: row.tipo_documento,
+      serie_numero: row.serie_numero,
+      fecha_emision: row.fecha_emision,
+      fecha_recepcion: row.fecha_recepcion,
+      subtotal: Number(row.subtotal),
+      igv: Number(row.igv),
+      total: Number(row.total),
+      estado: row.estado,
+      usuario_nombre: row.usuario_nombre,
+      observacion: row.observacion,
+      items_count: Number(row.items_count),
+      items: Array.isArray(row.items) ? row.items : [],
+    };
+  } catch (error) {
+    console.error('Error al consultar compra por ID:', error);
+    return null;
+  }
+}
+

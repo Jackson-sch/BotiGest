@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatMoney } from '@/lib/utils';
@@ -38,9 +39,28 @@ export function CajaClientView({
   movimientosActivos,
   cajasDisponibles,
 }: CajaClientViewProps) {
+  const router = useRouter();
   const [turnoActivo, setTurnoActivo] = React.useState<TurnoCajaResumen | null>(initialTurnoActivo);
   const [movimientos, setMovimientos] = React.useState<MovimientoCaja[]>(movimientosActivos);
   const [historial, setHistorial] = React.useState<TurnoCajaResumen[]>(historialTurnos);
+
+  // Sincronizar estado local en tiempo real cuando cambien los datos del servidor
+  React.useEffect(() => {
+    setTurnoActivo(initialTurnoActivo);
+  }, [initialTurnoActivo]);
+
+  React.useEffect(() => {
+    setHistorial(historialTurnos);
+  }, [historialTurnos]);
+
+  React.useEffect(() => {
+    setMovimientos(movimientosActivos);
+  }, [movimientosActivos]);
+
+  // Al montar la vista, solicitar actualización fresca del servidor
+  React.useEffect(() => {
+    router.refresh();
+  }, [router]);
 
   const [isAperturaOpen, setIsAperturaOpen] = React.useState(false);
   const [isMovimientoOpen, setIsMovimientoOpen] = React.useState(false);
@@ -386,7 +406,10 @@ export function CajaClientView({
           isOpen={isAperturaOpen}
           onClose={() => setIsAperturaOpen(false)}
           cajas={cajasDisponibles}
-          onSuccess={() => window.location.reload()}
+          onSuccess={() => {
+            setIsAperturaOpen(false);
+            router.refresh();
+          }}
         />
 
         {turnoActivo && (
@@ -395,17 +418,23 @@ export function CajaClientView({
               isOpen={isMovimientoOpen}
               onClose={() => setIsMovimientoOpen(false)}
               turnoId={turnoActivo.id}
-              onSuccess={() => window.location.reload()}
+              onSuccess={() => {
+                setIsMovimientoOpen(false);
+                router.refresh();
+              }}
             />
 
             <ArqueoCiegoModal
               isOpen={isArqueoOpen}
               onClose={() => {
                 setIsArqueoOpen(false);
-                window.location.reload();
+                router.refresh();
               }}
               turnoId={turnoActivo.id}
-              onSuccess={() => {}}
+              onSuccess={() => {
+                setIsArqueoOpen(false);
+                router.refresh();
+              }}
             />
           </>
         )}

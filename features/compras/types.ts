@@ -14,6 +14,7 @@ export interface Proveedor {
 export interface CompraItemInput {
   producto_id: string;
   producto_nombre: string;
+  laboratorio_nombre?: string;
   presentacion_id: string;
   presentacion_nombre: string;
   factor_base: number;

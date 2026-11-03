@@ -3,16 +3,24 @@
 import * as React from 'react';
 import {
   Search,
-  CheckSquare,
-  Square,
   Package,
   Plus,
-  X
+  X,
+  Building2,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { appleSprings } from '@/lib/utils';
 import type { ProductoItem } from '@/features/productos/types';
 import type { CompraItemInput } from '../types';
@@ -31,19 +39,40 @@ export function ModalSeleccionMultipleProductos({
   onAgregarItems,
 }: ModalSeleccionMultipleProductosProps) {
   const [busqueda, setBusqueda] = React.useState('');
+  const [selectedLab, setSelectedLab] = React.useState<string>('todos');
   const [selectedIds, setSelectedIds] = React.useState<Record<string, boolean>>({});
   const [cantidades, setCantidades] = React.useState<Record<string, number>>({});
 
+  // Lista de laboratorios únicos para el selector
+  const laboratorios = React.useMemo(() => {
+    const map = new Map<string, number>();
+    productos.forEach((p) => {
+      const lab = p.laboratorio_nombre || 'Sin Laboratorio';
+      map.set(lab, (map.get(lab) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([nombre, count]) => ({ nombre, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [productos]);
+
   const productosFiltrados = React.useMemo(() => {
-    if (!busqueda.trim()) return productos.slice(0, 50);
     const q = busqueda.toLowerCase().trim();
-    return productos.filter(
-      (p) =>
+    return productos.filter((p) => {
+      // Filtro de laboratorio
+      if (selectedLab !== 'todos') {
+        const lab = p.laboratorio_nombre || 'Sin Laboratorio';
+        if (lab !== selectedLab) return false;
+      }
+
+      // Filtro de búsqueda
+      if (!q) return true;
+      return (
         p.nombre_comercial.toLowerCase().includes(q) ||
         (p.nombre_generico && p.nombre_generico.toLowerCase().includes(q)) ||
         p.codigo_interno.toLowerCase().includes(q)
-    );
-  }, [productos, busqueda]);
+      );
+    }).slice(0, 80);
+  }, [productos, busqueda, selectedLab]);
 
   const handleToggle = (prodId: string) => {
     setSelectedIds((prev) => {
@@ -56,9 +85,13 @@ export function ModalSeleccionMultipleProductos({
   };
 
   const handleSelectAllVisible = () => {
-    const todos = productosFiltrados.every((p) => selectedIds[p.id]);
+    const todos = productosFiltrados.length > 0 && productosFiltrados.every((p) => selectedIds[p.id]);
     if (todos) {
-      setSelectedIds({});
+      const nuevo = { ...selectedIds };
+      productosFiltrados.forEach((p) => {
+        delete nuevo[p.id];
+      });
+      setSelectedIds(nuevo);
     } else {
       const nuevo = { ...selectedIds };
       const nuevasCant = { ...cantidades };
@@ -72,6 +105,18 @@ export function ModalSeleccionMultipleProductos({
   };
 
   const seleccionadosTotal = Object.values(selectedIds).filter(Boolean).length;
+
+  // Analizar cuántos laboratorios distintos hay en la selección
+  const laboratoriosEnSeleccion = React.useMemo(() => {
+    const map = new Map<string, number>();
+    productos.forEach((p) => {
+      if (selectedIds[p.id]) {
+        const lab = p.laboratorio_nombre || 'Sin Laboratorio';
+        map.set(lab, (map.get(lab) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries());
+  }, [productos, selectedIds]);
 
   const handleConfirmar = () => {
     const seleccionados = productos.filter((p) => selectedIds[p.id]);
@@ -88,6 +133,7 @@ export function ModalSeleccionMultipleProductos({
       return {
         producto_id: p.id,
         producto_nombre: p.nombre_comercial,
+        laboratorio_nombre: p.laboratorio_nombre || undefined,
         presentacion_id: pres?.id || 'default-pres',
         presentacion_nombre: pres?.nombre || 'Unidad',
         factor_base: factor,
@@ -119,47 +165,74 @@ export function ModalSeleccionMultipleProductos({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 15 }}
             transition={appleSprings.sheet}
-            className="relative w-full max-w-4xl h-[82vh] bg-white dark:bg-[#161618] rounded-3xl border border-border shadow-2xl z-10 flex flex-col overflow-hidden"
+            className="relative w-full max-w-4xl h-[85vh] bg-white dark:bg-[#161618] rounded-3xl border border-border shadow-2xl z-10 flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between shrink-0 bg-black/[0.02] dark:bg-white/[0.02]">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                  <CheckSquare className="w-5 h-5" />
+                  <Package className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-base text-foreground">
                     Selección Múltiple de Medicamentos
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    Marque todos los productos que desea incluir en esta orden de compra
+                    Filtre por laboratorio y marque todos los productos que ingresarán en esta orden
                   </p>
                 </div>
               </div>
 
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={onClose}
-                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/[0.05] dark:hover:bg-white/[0.05]"
+                className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground"
               >
-                <X className="h-5 w-5" />
-              </button>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
-            {/* Barra de Filtro y Acción Rápida */}
+            {/* Barra de Filtro (Búsqueda + Laboratorio + Acción Rápida) */}
             <div className="p-3 border-b border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nombre, genérico o código..."
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  className="h-8 pl-9 text-xs rounded-xl"
-                  autoFocus
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto flex-1">
+                {/* Buscador */}
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar medicamento o código..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="h-8 pl-9 text-xs rounded-xl"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Filtro de Laboratorio */}
+                <div className="w-full sm:w-64">
+                  <Select
+                    value={selectedLab}
+                    onValueChange={(val) => setSelectedLab(val)}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-xl">
+                      <SelectValue placeholder="Laboratorio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">
+                        Todos los Laboratorios ({productos.length})
+                      </SelectItem>
+                      {laboratorios.map((lab) => (
+                        <SelectItem key={lab.nombre} value={lab.nombre}>
+                          {lab.nombre} ({lab.count})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -179,6 +252,21 @@ export function ModalSeleccionMultipleProductos({
               </div>
             </div>
 
+            {/* Alerta si se están seleccionando medicamentos de laboratorios mixtos */}
+            {laboratoriosEnSeleccion.length > 1 && (
+              <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>
+                    Está incluyendo productos de <strong>{laboratoriosEnSeleccion.length} laboratorios diferentes</strong>: {laboratoriosEnSeleccion.map(([lab, count]) => `${lab} (${count})`).join(', ')}.
+                  </span>
+                </div>
+                <span className="text-[11px] text-amber-700/80 dark:text-amber-400/80 hidden sm:inline">
+                  Verifique que su droguería facture ambas marcas juntas.
+                </span>
+              </div>
+            )}
+
             {/* Lista de Productos con Checkbox y Cantidad */}
             <div className="flex-1 overflow-y-auto p-3">
               <table className="w-full text-xs">
@@ -192,65 +280,72 @@ export function ModalSeleccionMultipleProductos({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
-                  {productosFiltrados.map((p) => {
-                    const isSelected = !!selectedIds[p.id];
-                    const pres = p.presentaciones.find((pr) => pr.es_default) || p.presentaciones[0];
+                  {productosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                        No se encontraron productos para los criterios de búsqueda y laboratorio seleccionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    productosFiltrados.map((p) => {
+                      const isSelected = !!selectedIds[p.id];
+                      const pres = p.presentaciones.find((pr) => pr.es_default) || p.presentaciones[0];
 
-                    return (
-                      <tr
-                        key={p.id}
-                        className={`hover:bg-muted/30 transition-colors ${
-                          isSelected ? 'bg-emerald-500/5' : ''
-                        }`}
-                      >
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleToggle(p.id)}
-                            className="p-1 rounded text-muted-foreground hover:text-foreground"
-                          >
-                            {isSelected ? (
-                              <CheckSquare className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <Square className="w-4 h-4" />
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="font-semibold text-foreground">{p.nombre_comercial}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {p.nombre_generico ? `${p.nombre_generico} · ` : ''}
-                            {p.concentracion ? `${p.concentracion} · ` : ''}
-                            <span className="font-mono text-[#0071e3]">{pres?.nombre || 'Unidad'}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground">
-                          {p.laboratorio_nombre || 'Varios'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-medium">
-                          {p.total_stock || 0} {p.unidad_base}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <Input
-                            type="number"
-                            min="1"
-                            disabled={!isSelected}
-                            value={cantidades[p.id] || 1}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value, 10);
-                              setCantidades((prev) => ({
-                                ...prev,
-                                [p.id]: isNaN(v) || v <= 0 ? 1 : v,
-                              }));
-                            }}
-                            className={`h-7 w-20 text-center font-mono font-bold text-xs mx-auto rounded-lg ${
-                              isSelected ? 'border-emerald-500 focus:ring-1 focus:ring-emerald-500' : 'opacity-40'
-                            }`}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`hover:bg-muted/30 transition-colors ${
+                            isSelected ? 'bg-emerald-500/5' : ''
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-center">
+                            <div className="flex items-center justify-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => handleToggle(p.id)}
+                                aria-label={`Seleccionar ${p.nombre_comercial}`}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="font-semibold text-foreground">{p.nombre_comercial}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {p.nombre_generico ? `${p.nombre_generico} · ` : ''}
+                              {p.concentracion ? `${p.concentracion} · ` : ''}
+                              <span className="font-mono text-[#0071e3]">{pres?.nombre || 'Unidad'}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge variant="outline" className="text-[10px] font-normal border-border/60">
+                              <Building2 className="w-2.5 h-2.5 mr-1 opacity-70" />
+                              {p.laboratorio_nombre || 'Sin Laboratorio'}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-medium">
+                            {p.total_stock || 0} {p.unidad_base}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <Input
+                              type="number"
+                              min="1"
+                              disabled={!isSelected}
+                              value={cantidades[p.id] || 1}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                setCantidades((prev) => ({
+                                  ...prev,
+                                  [p.id]: isNaN(v) || v <= 0 ? 1 : v,
+                                }));
+                              }}
+                              className={`h-7 w-20 text-center font-mono font-bold text-xs mx-auto rounded-lg ${
+                                isSelected ? 'border-emerald-500 focus:ring-1 focus:ring-emerald-500' : 'opacity-40'
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

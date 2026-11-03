@@ -59,6 +59,16 @@ export function DatePicker({
     return undefined
   }, [value])
 
+  // Estado del mes visible en el calendario, sincronizado con la fecha seleccionada
+  const [month, setMonth] = React.useState<Date | undefined>(() => parsedDate || new Date())
+
+  // Sincronizar el mes visible cada vez que se abra el popover o cambie la fecha
+  React.useEffect(() => {
+    if (open) {
+      setMonth(parsedDate || new Date())
+    }
+  }, [open, parsedDate])
+
   const handleSelect = (selectedDate: Date | undefined) => {
     if (!selectedDate) {
       onChange?.("")
@@ -120,6 +130,9 @@ export function DatePicker({
           mode="single"
           selected={parsedDate}
           onSelect={handleSelect}
+          month={month}
+          onMonthChange={setMonth}
+          defaultMonth={parsedDate || new Date()}
           startMonth={startMonth}
           endMonth={endMonth}
           disabled={(date) => {

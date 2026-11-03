@@ -45,3 +45,11 @@ skills-lock.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database backups
+/backups/
+*.dump
+
+# brag output
+/brag-output/
+

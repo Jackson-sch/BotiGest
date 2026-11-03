@@ -1,11 +1,15 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import {
   Eye,
   CheckCircle2,
   Clock,
   Truck,
+  XCircle,
+  Ban,
+  Pencil,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,9 +26,10 @@ interface ComprasTableProps {
   compras: CompraResumen[];
   onVerDetalle: (compra: CompraResumen) => void;
   onRecibir: (compra: CompraResumen) => void;
+  onAnular?: (compra: CompraResumen) => void;
 }
 
-export function ComprasTable({ compras, onVerDetalle, onRecibir }: ComprasTableProps) {
+export function ComprasTable({ compras, onVerDetalle, onRecibir, onAnular }: ComprasTableProps) {
   const [filtroEstado, setFiltroEstado] = useQueryState('estado', parseAsString.withDefault('todos'));
 
   const columns = React.useMemo<ColumnDef<CompraResumen>[]>(
@@ -109,20 +114,33 @@ export function ComprasTable({ compras, onVerDetalle, onRecibir }: ComprasTableP
           </div>
         ),
         cell: ({ row }) => {
-          const esRecibida = row.original.estado === 'recibida';
-          return (
-            <div className="flex justify-center">
-              {esRecibida ? (
+          const estado = row.original.estado;
+          if (estado === 'recibida') {
+            return (
+              <div className="flex justify-center">
                 <Badge variant="success" className="gap-1 text-[11px]">
                   <CheckCircle2 className="h-3 w-3" />
                   <span>En Almacén</span>
                 </Badge>
-              ) : (
-                <Badge variant="warning" className="gap-1 text-[11px]">
-                  <Clock className="h-3 w-3" />
-                  <span>Borrador (Por Recibir)</span>
+              </div>
+            );
+          }
+          if (estado === 'anulada') {
+            return (
+              <div className="flex justify-center">
+                <Badge variant="outline" className="gap-1 text-[11px] bg-rose-500/10 text-rose-600 border-rose-500/30">
+                  <XCircle className="h-3 w-3" />
+                  <span>Anulada</span>
                 </Badge>
-              )}
+              </div>
+            );
+          }
+          return (
+            <div className="flex justify-center">
+              <Badge variant="warning" className="gap-1 text-[11px]">
+                <Clock className="h-3 w-3" />
+                <span>Borrador (Por Recibir)</span>
+              </Badge>
             </div>
           );
         },
@@ -133,8 +151,9 @@ export function ComprasTable({ compras, onVerDetalle, onRecibir }: ComprasTableP
         cell: ({ row }) => {
           const c = row.original;
           const esRecibida = c.estado === 'recibida';
+          const esAnulada = c.estado === 'anulada';
           return (
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-1.5">
               <Button
                 size="sm"
                 variant="ghost"
@@ -144,7 +163,20 @@ export function ComprasTable({ compras, onVerDetalle, onRecibir }: ComprasTableP
                 <Eye className="h-3.5 w-3.5 mr-1" />
                 Ver
               </Button>
-              {!esRecibida && (
+              {c.estado === 'borrador' && (
+                <Link href={`/compras/${c.id}/editar`}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-lg h-7 px-2 text-xs text-[#0071e3] hover:text-[#0071e3] hover:bg-blue-500/10"
+                    title="Editar orden en borrador"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Editar
+                  </Button>
+                </Link>
+              )}
+              {!esRecibida && !esAnulada && (
                 <Button
                   size="sm"
                   onClick={() => onRecibir(c)}
@@ -154,12 +186,23 @@ export function ComprasTable({ compras, onVerDetalle, onRecibir }: ComprasTableP
                   Recibir Lotes
                 </Button>
               )}
+              {!esAnulada && onAnular && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onAnular(c)}
+                  className="rounded-lg h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
+                  title="Anular comprobante"
+                >
+                  <Ban className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           );
         },
       },
     ],
-    [onRecibir, onVerDetalle]
+    [onRecibir, onVerDetalle, onAnular]
   );
 
   const comprasFiltradas = React.useMemo(() => {

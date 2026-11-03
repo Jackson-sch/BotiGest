@@ -39,6 +39,10 @@ export function PosCheckoutModal() {
 
   const totales = getTotales();
 
+  const montoInputRef = React.useRef<HTMLInputElement>(null);
+  const docInputRef = React.useRef<HTMLInputElement>(null);
+  const refOperacionInputRef = React.useRef<HTMLInputElement>(null);
+
   const [metodo, setMetodo] = React.useState<MetodoPago>('efectivo');
   const [montoEfectivo, setMontoEfectivo] = React.useState<string>('');
   const [numOperacion, setNumOperacion] = React.useState<string>('');
@@ -49,7 +53,7 @@ export function PosCheckoutModal() {
   const [isSearchingDoc, setIsSearchingDoc] = React.useState(false);
   const [ticketData, setTicketData] = React.useState<any>(null);
 
-  const handleBuscarDoc = async (docToSearch?: string) => {
+  const handleBuscarDoc = React.useCallback(async (docToSearch?: string) => {
     const doc = (docToSearch || docCliente).trim();
     const isRuc = tipo_comprobante === 'factura';
     if (isRuc && doc.length !== 11) {
@@ -79,16 +83,29 @@ export function PosCheckoutModal() {
     } finally {
       setIsSearchingDoc(false);
     }
-  };
+  }, [docCliente, tipo_comprobante]);
 
-  // Inicializar monto exacto si es efectivo
+  // Inicializar monto exacto si es efectivo y auto-enfocar para cobrar ágilmente
   React.useEffect(() => {
     if (isCheckoutModalOpen) {
       setMontoEfectivo(totales.total.toFixed(2));
       setIsSuccess(false);
       setIsSubmitting(false);
+
+      const timer = setTimeout(() => {
+        if (tipo_comprobante === 'factura' && !docCliente) {
+          docInputRef.current?.focus();
+        } else if (metodo === 'efectivo') {
+          montoInputRef.current?.focus();
+          montoInputRef.current?.select();
+        } else {
+          refOperacionInputRef.current?.focus();
+        }
+      }, 80);
+
+      return () => clearTimeout(timer);
     }
-  }, [isCheckoutModalOpen, totales.total]);
+  }, [isCheckoutModalOpen, totales.total, tipo_comprobante, docCliente, metodo]);
 
   const vuelto = React.useMemo(() => {
     const pagado = parseFloat(montoEfectivo) || 0;
@@ -106,16 +123,21 @@ export function PosCheckoutModal() {
   // Selección directa de billete peruano recibido (monto fijo)
   const setQuickCash = (amount: number) => {
     setMontoEfectivo(amount.toFixed(2));
+    setTimeout(() => {
+      montoInputRef.current?.focus();
+    }, 50);
   };
 
-  const handleProcesarVenta = async () => {
+  const handleProcesarVenta = React.useCallback(async () => {
     // Validaciones SUNAT
     if (tipo_comprobante === 'factura' && (!docCliente || docCliente.length !== 11)) {
       toast.error('La factura requiere un número de RUC válido de 11 dígitos.');
+      docInputRef.current?.focus();
       return;
     }
     if (tipo_comprobante === 'boleta' && totales.total >= 700 && (!docCliente || !nomCliente)) {
       toast.error('Las boletas a partir de S/ 700.00 requieren identificar al cliente (DNI y nombre).');
+      docInputRef.current?.focus();
       return;
     }
 
@@ -214,7 +236,109 @@ export function PosCheckoutModal() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [
+    tipo_comprobante,
+    docCliente,
+    nomCliente,
+    totales,
+    receta,
+    items,
+    metodo,
+    montoEfectivo,
+    numOperacion,
+    vuelto,
+    setCheckoutModalOpen,
+    setRecetaModalOpen,
+  ]);
+
+  // Atajo de teclado: Enter para cobro instantáneo, Esc para volver, Alt+1..3 / Alt+E/Y/T método de pago
+  React.useEffect(() => {
+    if (!isCheckoutModalOpen || isSuccess) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape: Volver / Cerrar modal
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setCheckoutModalOpen(false);
+        return;
+      }
+
+      const isAltOrMeta = e.altKey || e.metaKey;
+
+      // Alt+1 o Alt+E -> Efectivo
+      if (isAltOrMeta && (e.key === '1' || e.key.toLowerCase() === 'e')) {
+        e.preventDefault();
+        setMetodo('efectivo');
+        setTimeout(() => {
+          montoInputRef.current?.focus();
+          montoInputRef.current?.select();
+        }, 50);
+        return;
+      }
+      // Alt+2 o Alt+Y -> Yape / Plin
+      if (isAltOrMeta && (e.key === '2' || e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        setMetodo('yape');
+        setTimeout(() => refOperacionInputRef.current?.focus(), 50);
+        return;
+      }
+      // Alt+3 o Alt+T -> Tarjeta
+      if (isAltOrMeta && (e.key === '3' || e.key.toLowerCase() === 't')) {
+        e.preventDefault();
+        setMetodo('tarjeta');
+        setTimeout(() => refOperacionInputRef.current?.focus(), 50);
+        return;
+      }
+
+      // Enter: Cobro ágil inmediato
+      if (e.key === 'Enter') {
+        const active = document.activeElement;
+
+        // Si está en el input de documento y tiene longitud completa
+        if (active === docInputRef.current) {
+          const isRuc = tipo_comprobante === 'factura';
+          if ((isRuc && docCliente.length === 11) || (!isRuc && docCliente.length === 8)) {
+            e.preventDefault();
+            handleBuscarDoc(docCliente);
+            if (metodo === 'efectivo') {
+              montoInputRef.current?.focus();
+              montoInputRef.current?.select();
+            }
+            return;
+          }
+        }
+
+        e.preventDefault();
+        if (isSubmitting) return;
+
+        if (!esPagoSuficiente) {
+          const faltante = totales.total - (parseFloat(montoEfectivo) || 0);
+          toast.warning(`Monto insuficiente: Falta ${formatMoney(Math.max(0, faltante))}`);
+          montoInputRef.current?.focus();
+          montoInputRef.current?.select();
+          return;
+        }
+
+        handleProcesarVenta();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isCheckoutModalOpen,
+    isSuccess,
+    isSubmitting,
+    esPagoSuficiente,
+    tipo_comprobante,
+    docCliente,
+    montoEfectivo,
+    totales.total,
+    metodo,
+    handleProcesarVenta,
+    handleBuscarDoc,
+    setCheckoutModalOpen,
+  ]);
 
   const handleFinalizar = () => {
     clearCart();
@@ -305,6 +429,7 @@ export function PosCheckoutModal() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div className="relative flex items-center">
                         <Input
+                          ref={docInputRef}
                           placeholder={tipo_comprobante === 'factura' ? 'RUC (11 dígitos)' : 'DNI (8 dígitos)'}
                           value={docCliente}
                           onChange={(e) => {
@@ -364,9 +489,9 @@ export function PosCheckoutModal() {
                   <label className="text-xs font-semibold text-foreground">Método de Pago</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { id: 'efectivo', label: 'Efectivo', icon: Banknote },
-                      { id: 'yape', label: 'Yape / Plin', icon: Smartphone },
-                      { id: 'tarjeta', label: 'Tarjeta', icon: CreditCard },
+                      { id: 'efectivo', label: 'Efectivo', icon: Banknote, shortcut: 'Alt+1' },
+                      { id: 'yape', label: 'Yape / Plin', icon: Smartphone, shortcut: 'Alt+2' },
+                      { id: 'tarjeta', label: 'Tarjeta', icon: CreditCard, shortcut: 'Alt+3' },
                     ].map((m) => {
                       const Icon = m.icon;
                       const active = metodo === m.id;
@@ -374,8 +499,18 @@ export function PosCheckoutModal() {
                         <button
                           key={m.id}
                           type="button"
-                          onClick={() => setMetodo(m.id as MetodoPago)}
-                          className={`p-3 rounded-2xl border text-xs font-medium flex flex-col items-center gap-1.5 transition-all duration-150 apple-press-feedback ${
+                          onClick={() => {
+                            setMetodo(m.id as MetodoPago);
+                            if (m.id === 'efectivo') {
+                              setTimeout(() => {
+                                montoInputRef.current?.focus();
+                                montoInputRef.current?.select();
+                              }, 50);
+                            } else {
+                              setTimeout(() => refOperacionInputRef.current?.focus(), 50);
+                            }
+                          }}
+                          className={`p-3 rounded-2xl border text-xs font-medium flex flex-col items-center gap-1.5 transition-all duration-150 apple-press-feedback relative cursor-pointer ${
                             active
                               ? 'border-[#0071e3] bg-[#0071e3]/10 text-[#0071e3] font-bold shadow-xs'
                               : 'border-border bg-black/[0.02] dark:bg-white/[0.04] text-muted-foreground hover:text-foreground'
@@ -383,6 +518,13 @@ export function PosCheckoutModal() {
                         >
                           <Icon className="h-5 w-5" />
                           <span>{m.label}</span>
+                          <span
+                            className={`text-[9px] font-mono px-1 py-0.2 rounded transition-colors ${
+                              active ? 'bg-[#0071e3]/20 text-[#0071e3] font-semibold' : 'opacity-50'
+                            }`}
+                          >
+                            [{m.shortcut}]
+                          </span>
                         </button>
                       );
                     })}
@@ -396,12 +538,26 @@ export function PosCheckoutModal() {
                       <div className="space-y-1 flex-1">
                         <label className="text-xs font-medium text-foreground">Monto Recibido</label>
                         <Input
+                          ref={montoInputRef}
                           type="number"
                           step="0.10"
                           value={montoEfectivo}
                           onChange={(e) => setMontoEfectivo(e.target.value)}
                           onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (!esPagoSuficiente) {
+                                const faltante = totales.total - (parseFloat(montoEfectivo) || 0);
+                                toast.warning(`Monto insuficiente: Falta ${formatMoney(Math.max(0, faltante))}`);
+                                montoInputRef.current?.select();
+                                return;
+                              }
+                              handleProcesarVenta();
+                            }
+                          }}
                           className="font-mono text-base font-semibold"
+                          placeholder="0.00"
                         />
                       </div>
                       <div className="space-y-1 flex-1 text-right">
@@ -434,7 +590,10 @@ export function PosCheckoutModal() {
                       })}
                       <button
                         type="button"
-                        onClick={() => setMontoEfectivo(totales.total.toFixed(2))}
+                        onClick={() => {
+                          setMontoEfectivo(totales.total.toFixed(2));
+                          setTimeout(() => montoInputRef.current?.focus(), 50);
+                        }}
                         className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all apple-press-feedback ml-auto cursor-pointer ${
                           parseFloat(montoEfectivo) === totales.total
                             ? 'bg-[#0071e3] text-white border-[#0071e3] font-bold'
@@ -454,31 +613,79 @@ export function PosCheckoutModal() {
                       Número de Operación / Referencia
                     </label>
                     <Input
+                      ref={refOperacionInputRef}
                       placeholder="Ej. 987654 (Opcional)"
                       value={numOperacion}
                       onChange={(e) => setNumOperacion(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleProcesarVenta();
+                        }
+                      }}
                     />
                   </div>
                 )}
 
-                  {/* Botón de Confirmación */}
-                  <div className="pt-2 flex items-center justify-end gap-3">
-                    <Button
-                      variant="ghost"
-                      onClick={() => setCheckoutModalOpen(false)}
-                      className="rounded-xl"
-                    >
-                      Volver
-                    </Button>
-                    <Button
-                      size="lg"
-                      disabled={!esPagoSuficiente || isSubmitting}
-                      onClick={handleProcesarVenta}
-                      className="rounded-2xl px-6 gap-2 font-semibold shadow-sm"
-                    >
-                      <span>{isSubmitting ? 'Emitiendo...' : `Emitir ${tipo_comprobante}`}</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
+                  {/* Botón de Confirmación y atajos rápidos */}
+                  <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-2">
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] text-foreground font-mono font-semibold text-[10px] border border-border">
+                          Enter
+                        </kbd>
+                        <span>Cobrar</span>
+                      </span>
+                      <span className="opacity-40">•</span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] text-foreground font-mono font-semibold text-[10px] border border-border">
+                          Esc
+                        </kbd>
+                        <span>Volver</span>
+                      </span>
+                      <span className="opacity-40">•</span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 rounded bg-black/[0.05] dark:bg-white/[0.08] text-foreground font-mono font-semibold text-[10px] border border-border">
+                          Alt + 1..3
+                        </kbd>
+                        <span>Métodos</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 ml-auto">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setCheckoutModalOpen(false)}
+                        className="rounded-xl text-xs"
+                      >
+                        Volver
+                      </Button>
+                      <Button
+                        size="lg"
+                        disabled={!esPagoSuficiente || isSubmitting}
+                        onClick={handleProcesarVenta}
+                        className={`rounded-2xl px-6 gap-2 font-semibold shadow-sm transition-all cursor-pointer ${
+                          esPagoSuficiente
+                            ? 'bg-[#0071e3] hover:bg-[#0071e3]/90 text-white shadow-[#0071e3]/20 shadow-md'
+                            : 'opacity-60 cursor-not-allowed'
+                        }`}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Emitiendo...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Emitir {tipo_comprobante}</span>
+                            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-white/20 text-white border border-white/20">
+                              ↵ Enter
+                            </kbd>
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
             </motion.div>

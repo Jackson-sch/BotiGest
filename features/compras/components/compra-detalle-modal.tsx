@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
-import { Truck, X, Calendar, FileText, CheckCircle2, Boxes } from 'lucide-react';
+import { Truck, X, Calendar, FileText, CheckCircle2, Boxes, Ban, XCircle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { appleSprings, formatMoney } from '@/lib/utils';
@@ -13,6 +14,7 @@ interface CompraDetalleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRecibir?: (compraId: string) => void;
+  onAnular?: (compra: CompraCompleta) => void;
 }
 
 export function CompraDetalleModal({
@@ -20,6 +22,7 @@ export function CompraDetalleModal({
   isOpen,
   onClose,
   onRecibir,
+  onAnular,
 }: CompraDetalleModalProps) {
   if (!compra) return null;
 
@@ -56,7 +59,12 @@ export function CompraDetalleModal({
                     <h3 className="font-semibold text-base tracking-apple-title text-foreground">
                       {compra.tipo_documento.toUpperCase()} {compra.serie_numero}
                     </h3>
-                    {esRecibida ? (
+                    {compra.estado === 'anulada' ? (
+                      <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-600 border-rose-500/30 gap-1">
+                        <XCircle className="w-3 h-3" />
+                        Anulada
+                      </Badge>
+                    ) : esRecibida ? (
                       <Badge variant="success" className="text-[10px]">Recibida en Almacén</Badge>
                     ) : (
                       <Badge variant="warning" className="text-[10px]">Borrador</Badge>
@@ -148,19 +156,56 @@ export function CompraDetalleModal({
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2.5">
-              <Button variant="ghost" onClick={onClose} className="rounded-xl">
-                Cerrar
-              </Button>
-              {!esRecibida && onRecibir && (
+            {/* Observación / Motivo de anulación si existe */}
+            {compra.observacion && (
+              <div className="p-3 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground">
+                <strong className="text-foreground font-medium">Observación: </strong>
+                <span>{compra.observacion}</span>
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center justify-between gap-2.5">
+              {compra.estado !== 'anulada' && onAnular ? (
                 <Button
-                  onClick={() => onRecibir(compra.id)}
-                  className="rounded-xl px-5 font-semibold bg-[#34c759] hover:bg-[#28a745] text-white"
+                  variant="outline"
+                  onClick={() => {
+                    onClose();
+                    onAnular(compra);
+                  }}
+                  className="rounded-xl border-rose-500/30 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 text-xs h-9"
                 >
-                  <Boxes className="h-4 w-4 mr-1.5" />
-                  Confirmar Recepción de Lotes
+                  <Ban className="h-4 w-4 mr-1.5" />
+                  Anular Factura
                 </Button>
+              ) : (
+                <div />
               )}
+
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={onClose} className="rounded-xl text-xs h-9">
+                  Cerrar
+                </Button>
+                {!esRecibida && compra.estado === 'borrador' && (
+                  <Link href={`/compras/${compra.id}/editar`} onClick={onClose}>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl border-[#0071e3]/30 text-[#0071e3] hover:bg-blue-500/10 text-xs h-9 font-medium"
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                      Editar Borrador
+                    </Button>
+                  </Link>
+                )}
+                {!esRecibida && compra.estado !== 'anulada' && onRecibir && (
+                  <Button
+                    onClick={() => onRecibir(compra.id)}
+                    className="rounded-xl px-4 text-xs font-semibold bg-[#34c759] hover:bg-[#28a745] text-white h-9"
+                  >
+                    <Boxes className="h-4 w-4 mr-1.5" />
+                    Confirmar Recepción de Lotes
+                  </Button>
+                )}
+              </div>
             </div>
           </motion.div>
         </div>

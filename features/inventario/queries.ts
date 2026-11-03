@@ -22,16 +22,18 @@ export async function obtenerLotesInventario(): Promise<LoteConStock[]> {
       l.numero_lote,
       to_char(l.fecha_vencimiento, 'YYYY-MM-DD') as fecha_vencimiento,
       (l.fecha_vencimiento - current_date)::integer as dias_para_vencer,
-      coalesce(sl.cantidad_base, 0)::integer as cantidad_base,
+      sl.cantidad_base::integer as cantidad_base,
       p.unidad_base,
-      coalesce(sl.estado, 'disponible') as estado,
+      sl.estado,
       p.costo_promedio::numeric as costo_promedio,
       50 as stock_minimo,
       p.requiere_cadena_frio
-    from public.lotes l
+    from public.stock_lotes sl
+    join public.lotes l on l.id = sl.lote_id
     join public.productos p on p.id = l.producto_id
     left join public.laboratorios lab on lab.id = p.laboratorio_id
-    left join public.stock_lotes sl on sl.lote_id = l.id
+    where sl.cantidad_base > 0
+      and l.numero_lote <> 'POR-ASIGNAR'
     order by l.fecha_vencimiento asc, p.nombre_comercial asc;
   `;
 

@@ -174,6 +174,7 @@ const boticaData = {
       title: "Manual & Normativa DIGEMID",
       url: "https://www.digemid.minsa.gob.pe",
       icon: BookOpen,
+      external: true,
     },
     {
       title: "Estado OSE SUNAT Facturación",

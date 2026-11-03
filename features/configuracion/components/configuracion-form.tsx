@@ -17,6 +17,7 @@ import {
   Mail,
   MapPin,
   Lock,
+  Database,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,12 +32,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useQueryState, parseAsStringLiteral } from 'nuqs';
 import {
   actualizarConfiguracionBoticaAction,
   consultarRucEmpresaAction,
 } from '../actions';
+import { CopiasSeguridadView } from './copias-seguridad-view';
 import type { BoticaConfiguracion } from '../types';
 import type { FarmaceuticoOption } from '../queries';
+
+export const CONFIG_TABS = ['empresa', 'digemid', 'alertas', 'ticket', 'backups'] as const;
+export type ConfigTabType = (typeof CONFIG_TABS)[number];
 
 interface ConfiguracionFormProps {
   initialConfig: BoticaConfiguracion;
@@ -48,7 +54,10 @@ export function ConfiguracionForm({
   farmaceuticos,
 }: ConfiguracionFormProps) {
   const [formData, setFormData] = React.useState<BoticaConfiguracion>(initialConfig);
-  const [activeTab, setActiveTab] = React.useState<'empresa' | 'digemid' | 'alertas' | 'ticket'>('empresa');
+  const [activeTab, setActiveTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(CONFIG_TABS).withDefault('empresa')
+  );
   const [isSearchingRuc, setIsSearchingRuc] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
 
@@ -137,18 +146,20 @@ export function ConfiguracionForm({
           </p>
         </div>
 
-        <Button
-          type="submit"
-          disabled={isSaving}
-          className="h-9 px-4 text-xs font-semibold rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-sm gap-1.5 self-start sm:self-auto"
-        >
-          {isSaving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          )}
-          <span>Guardar Configuración</span>
-        </Button>
+        {activeTab !== 'backups' && (
+          <Button
+            type="submit"
+            disabled={isSaving}
+            className="h-9 px-4 text-xs font-semibold rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-sm gap-1.5 self-start sm:self-auto"
+          >
+            {isSaving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            )}
+            <span>Guardar Configuración</span>
+          </Button>
+        )}
       </div>
 
       {/* Tabs de Navegación Estilo Apple */}
@@ -203,6 +214,19 @@ export function ConfiguracionForm({
         >
           <Printer className="h-3.5 w-3.5" />
           <span>Tickets & Caja POS</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('backups')}
+          className={`h-7 px-3.5 flex items-center gap-1.5 rounded-lg text-xs font-medium transition-all duration-150 apple-press-feedback whitespace-nowrap ${
+            activeTab === 'backups'
+              ? 'bg-white dark:bg-white/10 text-[#0071e3] dark:text-[#2997ff] font-semibold shadow-xs'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Database className="h-3.5 w-3.5" />
+          <span>Copias de Seguridad</span>
         </button>
       </div>
 
@@ -566,6 +590,9 @@ export function ConfiguracionForm({
           </div>
         </Card>
       )}
+
+      {/* 5. Copias de Seguridad de Base de Datos */}
+      {activeTab === 'backups' && <CopiasSeguridadView />}
     </form>
   );
 }

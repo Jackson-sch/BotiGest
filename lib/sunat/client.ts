@@ -1,5 +1,6 @@
 import type { SunatComprobantePayload, SunatRespuestaEnvio } from './types';
 import { buildUbl21Xml } from './ubl-builder';
+import { query, queryOne } from '@/lib/db';
 
 export interface SunatApiConfig {
   baseUrl: string;
@@ -99,54 +100,256 @@ export async function consultarDniApi(dni: string): Promise<{
   }
 }
 
-/**
- * Consulta de RUC en SUNAT en tiempo real (Razón social, estado y condición fiscal).
- */
-export async function consultarRucApi(ruc: string): Promise<{
+export interface ConsultaRucResultado {
   success: boolean;
   razonSocial?: string;
   estado?: string;
   condicion?: string;
   direccion?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
   ubigeo?: string;
+  fuente?: 'db_cache' | 'db_proveedor' | 'db_cliente' | 'api_zodipe' | 'api_sunat';
   error?: string;
-}> {
+}
+
+/**
+ * Consulta de RUC en SUNAT con estrategia "Cache-Aside / DB-First":
+ * 1. Primero consulta la base de datos local (padron_ruc_cache, proveedores o clientes).
+ * 2. Si no existe en la DB local, consulta la API oficial en la nube (Zodipe API).
+ * 3. Si la API responde con éxito, guarda en padron_ruc_cache para no volver a gastar cuota.
+ * 4. Fallback automático a SUNAT Billing API secundaria si Zodipe no estuviera disponible.
+ */
+export async function consultarRucApi(ruc: string): Promise<ConsultaRucResultado> {
   const cleanRuc = ruc.trim();
-  if (cleanRuc.length !== 11) {
+  if (cleanRuc.length !== 11 || !/^\d{11}$/.test(cleanRuc)) {
     return { success: false, error: 'El RUC debe tener 11 dígitos numéricos.' };
   }
 
-  const config = getSunatApiConfig();
-  if (!config.apiKey) {
-    return { success: false, error: 'No se ha configurado SUNAT_API_KEY.' };
-  }
-
+  // ─────────────────────────────────────────────────────────────
+  // 1. CONSULTA EN BASE DE DATOS LOCAL (0ms de latencia externa)
+  // ─────────────────────────────────────────────────────────────
   try {
-    const res = await fetch(`${config.baseUrl}/api/v1/consultas/ruc`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': config.apiKey,
-      },
-      body: JSON.stringify({ ruc: cleanRuc }),
-    });
+    // 1.a Buscar en tabla de caché dedicado padron_ruc_cache
+    const cached = await queryOne<{
+      ruc: string;
+      razon_social: string;
+      estado: string | null;
+      condicion: string | null;
+      direccion: string | null;
+      departamento: string | null;
+      provincia: string | null;
+      distrito: string | null;
+      ubigeo: string | null;
+    }>(
+      `SELECT ruc, razon_social, estado, condicion, direccion, departamento, provincia, distrito, ubigeo 
+       FROM public.padron_ruc_cache 
+       WHERE ruc = $1`,
+      [cleanRuc]
+    );
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      return { success: false, error: data.error || 'No se encontraron datos para el RUC.' };
+    if (cached && cached.razon_social) {
+      return {
+        success: true,
+        razonSocial: cached.razon_social,
+        estado: cached.estado || 'ACTIVO',
+        condicion: cached.condicion || 'HABIDO',
+        direccion: cached.direccion || undefined,
+        departamento: cached.departamento || undefined,
+        provincia: cached.provincia || undefined,
+        distrito: cached.distrito || undefined,
+        ubigeo: cached.ubigeo || undefined,
+        fuente: 'db_cache',
+      };
     }
 
-    return {
-      success: true,
-      razonSocial: data.data?.razonSocial || data.data?.nombre,
-      estado: data.data?.estado,
-      condicion: data.data?.condicion,
-      direccion: data.data?.direccion,
-      ubigeo: data.data?.ubigeo,
-    };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Error de conexión al consultar RUC.' };
+    // 1.b Buscar en proveedores registrados previamente
+    const proveedor = await queryOne<{ razon_social: string; direccion: string | null }>(
+      `SELECT razon_social, direccion FROM public.proveedores WHERE ruc = $1 LIMIT 1`,
+      [cleanRuc]
+    );
+
+    if (proveedor && proveedor.razon_social) {
+      // Registrar en caché para consultas futuras unificadas
+      await query(
+        `INSERT INTO public.padron_ruc_cache (ruc, razon_social, direccion, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (ruc) DO NOTHING`,
+        [cleanRuc, proveedor.razon_social, proveedor.direccion]
+      ).catch(() => {});
+
+      return {
+        success: true,
+        razonSocial: proveedor.razon_social,
+        estado: 'ACTIVO',
+        condicion: 'HABIDO',
+        direccion: proveedor.direccion || undefined,
+        fuente: 'db_proveedor',
+      };
+    }
+
+    // 1.c Buscar en clientes registrados previamente
+    const cliente = await queryOne<{ nombres: string; direccion: string | null }>(
+      `SELECT nombres, direccion FROM public.clientes WHERE numero_documento = $1 AND tipo_documento = 'ruc' LIMIT 1`,
+      [cleanRuc]
+    );
+
+    if (cliente && cliente.nombres) {
+      await query(
+        `INSERT INTO public.padron_ruc_cache (ruc, razon_social, direccion, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (ruc) DO NOTHING`,
+        [cleanRuc, cliente.nombres, cliente.direccion]
+      ).catch(() => {});
+
+      return {
+        success: true,
+        razonSocial: cliente.nombres,
+        estado: 'ACTIVO',
+        condicion: 'HABIDO',
+        direccion: cliente.direccion || undefined,
+        fuente: 'db_cliente',
+      };
+    }
+  } catch (dbErr) {
+    console.warn('[consultarRucApi] Advertencia al buscar en DB local, continuando a API:', dbErr);
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2. CONSULTA A LA API EXTERNA PRINCIPAL: ZODIPE (https://zodipe.com)
+  // ─────────────────────────────────────────────────────────────
+  const zodipeToken = process.env.ZODIPE_API_TOKEN;
+  const zodipeBaseUrl = process.env.ZODIPE_API_URL || 'https://zodipe.com/api/v1/ruc';
+
+  if (zodipeToken && !zodipeToken.startsWith('zk_live_tu_clave')) {
+    try {
+      const url = `${zodipeBaseUrl.replace(/\/$/, '')}/${cleanRuc}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${zodipeToken}`,
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.razon_social) {
+          // 3. GUARDAR EN LA BASE DE DATOS LOCAL PARA NO REPETIR CONSULTAS
+          try {
+            await query(
+              `INSERT INTO public.padron_ruc_cache 
+               (ruc, razon_social, estado, condicion, direccion, departamento, provincia, distrito, ubigeo, raw_response, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+               ON CONFLICT (ruc) DO UPDATE SET
+                 razon_social = EXCLUDED.razon_social,
+                 estado = EXCLUDED.estado,
+                 condicion = EXCLUDED.condicion,
+                 direccion = EXCLUDED.direccion,
+                 departamento = EXCLUDED.departamento,
+                 provincia = EXCLUDED.provincia,
+                 distrito = EXCLUDED.distrito,
+                 ubigeo = EXCLUDED.ubigeo,
+                 raw_response = EXCLUDED.raw_response,
+                 updated_at = NOW()`,
+              [
+                cleanRuc,
+                data.razon_social,
+                data.estado || 'ACTIVO',
+                data.condicion || 'HABIDO',
+                data.direccion || null,
+                data.departamento || null,
+                data.provincia || null,
+                data.distrito || null,
+                data.ubigeo || null,
+                JSON.stringify(data),
+              ]
+            );
+          } catch (saveErr) {
+            console.error('[consultarRucApi] Error al persistir en padron_ruc_cache:', saveErr);
+          }
+
+          return {
+            success: true,
+            razonSocial: data.razon_social,
+            estado: data.estado || 'ACTIVO',
+            condicion: data.condicion || 'HABIDO',
+            direccion: data.direccion || undefined,
+            departamento: data.departamento || undefined,
+            provincia: data.provincia || undefined,
+            distrito: data.distrito || undefined,
+            ubigeo: data.ubigeo || undefined,
+            fuente: 'api_zodipe',
+          };
+        }
+      } else if (res.status === 404) {
+        const errData = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: errData.error || 'El RUC ingresado no se encuentra en el padrón de SUNAT.',
+        };
+      }
+    } catch (zodipeErr: any) {
+      console.warn('[consultarRucApi] Error al consultar Zodipe API:', zodipeErr.message);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 4. FALLBACK SECUNDARIO (SUNAT Billing API / Microservicio)
+  // ─────────────────────────────────────────────────────────────
+  const config = getSunatApiConfig();
+  if (config.apiKey && config.apiKey !== 'dev_token_botigest_2026') {
+    try {
+      const res = await fetch(`${config.baseUrl}/api/v1/consultas/ruc`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.apiKey,
+        },
+        body: JSON.stringify({ ruc: cleanRuc }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const razonSocial = data.data?.razonSocial || data.data?.nombre;
+        if (razonSocial) {
+          // Guardar en caché local
+          await query(
+            `INSERT INTO public.padron_ruc_cache (ruc, razon_social, estado, condicion, direccion, ubigeo, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())
+             ON CONFLICT (ruc) DO NOTHING`,
+            [
+              cleanRuc,
+              razonSocial,
+              data.data?.estado || 'ACTIVO',
+              data.data?.condicion || 'HABIDO',
+              data.data?.direccion || null,
+              data.data?.ubigeo || null,
+            ]
+          ).catch(() => {});
+
+          return {
+            success: true,
+            razonSocial,
+            estado: data.data?.estado,
+            condicion: data.data?.condicion,
+            direccion: data.data?.direccion,
+            ubigeo: data.data?.ubigeo,
+            fuente: 'api_sunat',
+          };
+        }
+      }
+    } catch (fallbackErr: any) {
+      console.warn('[consultarRucApi] Error en API fallback:', fallbackErr.message);
+    }
+  }
+
+  return {
+    success: false,
+    error: 'No se pudo consultar el RUC. Verifique el número o configure ZODIPE_API_TOKEN en el archivo .env.',
+  };
 }
 
 /**

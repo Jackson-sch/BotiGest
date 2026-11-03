@@ -37,42 +37,73 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatMoney } from '@/lib/utils';
-import type { Proveedor, CompraItemInput } from '../types';
+import type { Proveedor, CompraItemInput, CompraCompleta } from '../types';
 import type { ProductoItem, PresentacionItem } from '@/features/productos/types';
-import { registrarCompraAction, recibirCompraAction } from '../actions';
+import { registrarCompraAction, recibirCompraAction, actualizarCompraAction } from '../actions';
 import { ModalSeleccionMultipleProductos } from './modal-seleccion-multiple-productos';
 import { toast } from 'sonner';
 
 interface NuevaCompraPageViewProps {
   proveedores: Proveedor[];
   productos: ProductoItem[];
+  compraInicial?: CompraCompleta;
 }
 
 export function NuevaCompraPageView({
   proveedores,
   productos,
+  compraInicial,
 }: NuevaCompraPageViewProps) {
   const router = useRouter();
+  const esEdicion = Boolean(compraInicial);
 
   // Datos del comprobante
   const [selectedProveedorId, setSelectedProveedorId] = React.useState<string>(
-    proveedores[0]?.id || ''
+    compraInicial?.proveedor_id || proveedores[0]?.id || ''
   );
   const [tipoDocumento, setTipoDocumento] = React.useState<
     'factura' | 'boleta' | 'guia_remision' | 'otro'
-  >('factura');
-  const [serieNumero, setSerieNumero] = React.useState('');
-  const [fechaEmision, setFechaEmision] = React.useState(() =>
-    new Date().toISOString().split('T')[0]
+  >(compraInicial?.tipo_documento || 'factura');
+  const [serieNumero, setSerieNumero] = React.useState(compraInicial?.serie_numero || '');
+  const [fechaEmision, setFechaEmision] = React.useState(
+    () => compraInicial?.fecha_emision || new Date().toISOString().split('T')[0]
   );
-  const [observacion, setObservacion] = React.useState('');
+  const [observacion, setObservacion] = React.useState(compraInicial?.observacion || '');
 
   // Percepción SUNAT
   const [aplicaPercepcion, setAplicaPercepcion] = React.useState(false);
   const [tasaPercepcion, setTasaPercepcion] = React.useState<number>(1); // 1% o 2%
 
   // Items en la factura
-  const [items, setItems] = React.useState<CompraItemInput[]>([]);
+  const [items, setItems] = React.useState<CompraItemInput[]>(() => {
+    if (compraInicial?.items && compraInicial.items.length > 0) {
+      return compraInicial.items.map((it) => ({
+        producto_id: it.producto_id,
+        producto_nombre: it.producto_nombre,
+        laboratorio_nombre: it.laboratorio_nombre,
+        presentacion_id: it.presentacion_id,
+        presentacion_nombre: it.presentacion_nombre,
+        factor_base: it.factor_base,
+        numero_lote: it.numero_lote,
+        fecha_vencimiento: it.fecha_vencimiento,
+        cantidad: it.cantidad,
+        costo_unitario_presentacion: it.costo_unitario_presentacion,
+      }));
+    }
+    return [];
+  });
+
+  // Resumen de laboratorios presentes en la factura actual
+  const laboratoriosResumen = React.useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((it) => {
+      const lab = it.laboratorio_nombre || 'Sin Laboratorio';
+      map.set(lab, (map.get(lab) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([nombre, count]) => ({ nombre, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [items]);
 
   // Estado del selector de medicamento para nueva línea
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -120,6 +151,7 @@ export function NuevaCompraPageView({
             nuevosItems.push({
               producto_id: prodObj.id,
               producto_nombre: prodObj.nombre_comercial,
+              laboratorio_nombre: prodObj.laboratorio_nombre || (sug as any).laboratorio,
               presentacion_id: pres?.id || 'pres-default',
               presentacion_nombre: pres?.nombre || 'Unidad',
               factor_base: factor,
@@ -133,7 +165,9 @@ export function NuevaCompraPageView({
 
         if (nuevosItems.length > 0) {
           setItems(nuevosItems);
-          toast.success(`Se agregaron automáticamente ${nuevosItems.length} fármaco(s) desde el sugerido de compras.`);
+          toast.success(
+            `Se agregaron ${nuevosItems.length} fármaco(s) desde el sugerido. Puede ajustar el lote y la fecha de vencimiento directamente en la tabla.`
+          );
         }
       } catch (e) {
         console.error('Error al parsear borrador sugerido:', e);
@@ -297,6 +331,7 @@ export function NuevaCompraPageView({
     const nuevoItem: CompraItemInput = {
       producto_id: selectedProducto.id,
       producto_nombre: selectedProducto.nombre_comercial,
+      laboratorio_nombre: selectedProducto.laboratorio_nombre || undefined,
       presentacion_id: selectedPresentacion.id || 'pres-default',
       presentacion_nombre: selectedPresentacion.nombre,
       factor_base: selectedPresentacion.factor_base || 1,
@@ -367,41 +402,92 @@ export function NuevaCompraPageView({
       return;
     }
 
+    // Validar lotes y fechas de vencimiento de cada ítem
+    for (const it of items) {
+      if (!it.fecha_vencimiento || it.fecha_vencimiento.trim().length < 10) {
+        toast.error(`Indique la fecha de vencimiento para: ${it.producto_nombre}`);
+        return;
+      }
+      const estadoVto = calcularEstadoVencimiento(it.fecha_vencimiento);
+      if (estadoVto?.tipo === 'vencido') {
+        toast.error(
+          `El producto "${it.producto_nombre}" tiene fecha ya expirada (${it.fecha_vencimiento}). No se puede registrar.`
+        );
+        return;
+      }
+      if (modo === 'almacen') {
+        if (!it.numero_lote.trim() || it.numero_lote.trim() === 'POR-ASIGNAR') {
+          toast.error(
+            `Para ingresar a almacén debe indicar el número de lote real de: ${it.producto_nombre}`
+          );
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(modo);
 
     try {
-      // 1. Registrar compra en borrador
-      const res = await registrarCompraAction({
-        proveedor_id: selectedProveedorId,
-        tipo_documento: tipoDocumento,
-        serie_numero: serieNumero.trim().toUpperCase(),
-        fecha_emision: fechaEmision,
-        observacion:
-          observacion.trim() +
-          (aplicaPercepcion
-            ? ` | Percepción SUNAT (${tasaPercepcion}%): S/ ${montoPercepcion.toFixed(2)}`
-            : ''),
-        items,
-      });
+      let targetCompraId = compraInicial?.id;
 
-      if (!res.success || !res.compraId) {
-        toast.error(res.error || 'Error al guardar la compra');
-        setIsSubmitting(null);
-        return;
+      if (esEdicion && compraInicial) {
+        // 1. Actualizar compra existente en borrador
+        const res = await actualizarCompraAction({
+          compra_id: compraInicial.id,
+          proveedor_id: selectedProveedorId,
+          tipo_documento: tipoDocumento,
+          serie_numero: serieNumero.trim().toUpperCase(),
+          fecha_emision: fechaEmision,
+          observacion:
+            observacion.trim() +
+            (aplicaPercepcion
+              ? ` | Percepción SUNAT (${tasaPercepcion}%): S/ ${montoPercepcion.toFixed(2)}`
+              : ''),
+          items,
+        });
+
+        if (!res.success) {
+          toast.error(res.error || 'Error al actualizar la compra');
+          setIsSubmitting(null);
+          return;
+        }
+      } else {
+        // 1. Registrar nueva compra en borrador
+        const res = await registrarCompraAction({
+          proveedor_id: selectedProveedorId,
+          tipo_documento: tipoDocumento,
+          serie_numero: serieNumero.trim().toUpperCase(),
+          fecha_emision: fechaEmision,
+          observacion:
+            observacion.trim() +
+            (aplicaPercepcion
+              ? ` | Percepción SUNAT (${tasaPercepcion}%): S/ ${montoPercepcion.toFixed(2)}`
+              : ''),
+          items,
+        });
+
+        if (!res.success || !res.compraId) {
+          toast.error(res.error || 'Error al guardar la compra');
+          setIsSubmitting(null);
+          return;
+        }
+
+        targetCompraId = res.compraId;
       }
 
       // 2. Si se solicitó ingresar directamente a almacén, ejecutar recepción física
-      if (modo === 'almacen') {
+      if (modo === 'almacen' && targetCompraId) {
         const resRecibir = await recibirCompraAction({
-          compra_id: res.compraId,
+          compra_id: targetCompraId,
         });
 
         if (!resRecibir.success) {
           toast.warning(
-            'La compra se guardó como borrador, pero ocurrió un error al ingresar a almacén: ' +
+            'Los cambios en la compra se guardaron, pero ocurrió un error al ingresar a almacén: ' +
               resRecibir.error
           );
           router.push('/compras');
+          router.refresh();
           return;
         }
 
@@ -409,10 +495,15 @@ export function NuevaCompraPageView({
           '¡Compra ingresada a almacén exitosamente! Stock, lotes y Kardex actualizados.'
         );
       } else {
-        toast.success('Compra guardada en estado borrador para revisión posterior.');
+        toast.success(
+          esEdicion
+            ? '¡Compra en borrador actualizada exitosamente!'
+            : 'Compra guardada en estado borrador para revisión posterior.'
+        );
       }
 
       router.push('/compras');
+      router.refresh();
     } catch (err: any) {
       console.error(err);
       toast.error('Ocurrió un error inesperado al procesar la compra.');
@@ -439,10 +530,14 @@ export function NuevaCompraPageView({
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-semibold tracking-apple-display text-foreground">
-                Nueva Compra a Droguería / Proveedor
+                {esEdicion
+                  ? `Editar Compra (Borrador): ${compraInicial?.serie_numero}`
+                  : 'Nueva Compra a Droguería / Proveedor'}
               </h1>
               <p className="text-xs text-muted-foreground tracking-apple-body">
-                Comprobante de compra, control FEFO de lotes y registro en Kardex (DIGEMID / BPA)
+                {esEdicion
+                  ? 'Modifique medicamentos, cantidades, costos, lotes o vencimientos antes de la recepción formal en almacén'
+                  : 'Comprobante de compra, control FEFO de lotes y registro en Kardex (DIGEMID / BPA)'}
               </p>
             </div>
           </div>
@@ -865,6 +960,44 @@ export function NuevaCompraPageView({
               </span>
             </div>
 
+            {/* Banner inteligente si los medicamentos provienen de múltiples laboratorios */}
+            {laboratoriosResumen.length > 1 && (
+              <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                  <span className="font-semibold">
+                    {laboratoriosResumen.length} laboratorios en esta compra:
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {laboratoriosResumen.map((l) => (
+                      <Badge
+                        key={l.nombre}
+                        variant="outline"
+                        className="text-[10px] bg-background/50 border-amber-500/30 font-normal"
+                      >
+                        {l.nombre} ({l.count})
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[11px] text-amber-700/80 dark:text-amber-400/80">
+                  Verifique que la factura del proveedor incluya todos estos laboratorios.
+                </span>
+              </div>
+            )}
+
+            {/* Aviso si hay lotes provisionales pendientes de asignar fecha o lote */}
+            {items.some((it) => it.numero_lote === 'POR-ASIGNAR' || !it.fecha_vencimiento) && (
+              <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 flex items-center justify-between gap-2 text-xs text-blue-800 dark:text-blue-300">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                  <span>
+                    Hay productos importados con lote o fecha provisional. Ajuste los campos de <strong>Lote</strong> y <strong>Vto.</strong> directamente en cada fila según la factura del proveedor.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {items.length === 0 ? (
               <div className="p-8 text-center space-y-2">
                 <div className="h-12 w-12 rounded-full bg-muted/30 text-muted-foreground mx-auto flex items-center justify-center">
@@ -883,7 +1016,7 @@ export function NuevaCompraPageView({
                   <thead>
                     <tr className="border-b border-border/60 bg-muted/20 text-muted-foreground">
                       <th className="py-2.5 px-4 font-medium">Medicamento & Presentación</th>
-                      <th className="py-2.5 px-3 font-medium">Lote & Vencimiento (FEFO)</th>
+                      <th className="py-2.5 px-3 font-medium min-w-[240px]">Lote & Vencimiento (FEFO)</th>
                       <th className="py-2.5 px-3 font-medium text-center">Cant.</th>
                       <th className="py-2.5 px-3 font-medium text-right">Costo Pres.</th>
                       <th className="py-2.5 px-3 font-medium text-right">Subtotal</th>
@@ -903,38 +1036,60 @@ export function NuevaCompraPageView({
                             <div className="font-semibold text-foreground">
                               {it.producto_nombre}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
-                              {it.presentacion_nombre} (x{it.factor_base} unid.)
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
+                              <span>{it.presentacion_nombre} (x{it.factor_base} unid.)</span>
+                              {it.laboratorio_nombre && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1 border-border/60 font-normal">
+                                  <Building2 className="w-2.5 h-2.5 mr-0.5 opacity-70" />
+                                  {it.laboratorio_nombre}
+                                </Badge>
+                              )}
                             </div>
                           </td>
 
-                          {/* Lote & Vencimiento */}
+                          {/* Lote & Vencimiento Editable */}
                           <td className="py-3 px-3">
-                            <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-foreground">
-                              <span>Lote:</span>
-                              <input
-                                value={it.numero_lote}
-                                onChange={(e) =>
-                                  handleActualizarItem(
-                                    idx,
-                                    'numero_lote',
-                                    e.target.value.toUpperCase()
-                                  )
-                                }
-                                className="w-24 bg-transparent border-b border-border/40 text-xs uppercase focus:outline-none focus:border-foreground"
-                              />
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5">
-                              <span className="text-[11px] text-muted-foreground font-mono">
-                                {it.fecha_vencimiento}
-                              </span>
-                              {alertaVto && (
-                                <span
-                                  className={`text-[10px] px-1.5 py-0.5 rounded border ${alertaVto.color}`}
-                                >
-                                  {alertaVto.texto}
-                                </span>
-                              )}
+                            <div className="flex flex-col gap-1.5 min-w-[230px]">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-muted-foreground w-7 shrink-0 font-medium">Lote:</span>
+                                <Input
+                                  value={it.numero_lote}
+                                  placeholder="Ej. L-2026-A"
+                                  onChange={(e) =>
+                                    handleActualizarItem(
+                                      idx,
+                                      'numero_lote',
+                                      e.target.value.toUpperCase()
+                                    )
+                                  }
+                                  className={`h-7 w-32 text-xs font-mono uppercase rounded-lg bg-background ${
+                                    it.numero_lote === 'POR-ASIGNAR' || !it.numero_lote.trim()
+                                      ? 'border-amber-500/60 bg-amber-500/5 text-amber-800 dark:text-amber-300'
+                                      : ''
+                                  }`}
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-muted-foreground w-7 shrink-0 font-medium">Vto:</span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <DatePicker
+                                    value={it.fecha_vencimiento}
+                                    onChange={(val) =>
+                                      handleActualizarItem(idx, 'fecha_vencimiento', val)
+                                    }
+                                    placeholder="dd/mm/aaaa"
+                                    className="h-7 w-32 text-xs rounded-lg px-2"
+                                  />
+                                  {alertaVto && (
+                                    <span
+                                      className={`text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap font-medium ${alertaVto.color}`}
+                                    >
+                                      {alertaVto.texto}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </td>
 
@@ -1122,6 +1277,8 @@ export function NuevaCompraPageView({
                 <span>
                   {isSubmitting === 'almacen'
                     ? 'Procesando e Ingresando...'
+                    : esEdicion
+                    ? 'Guardar e Ingresar a Almacén'
                     : 'Ingresar a Almacén Directamente'}
                 </span>
               </Button>
@@ -1137,6 +1294,8 @@ export function NuevaCompraPageView({
                 <span>
                   {isSubmitting === 'borrador'
                     ? 'Guardando...'
+                    : esEdicion
+                    ? 'Actualizar Borrador'
                     : 'Guardar como Borrador (Sin Ingreso Físico)'}
                 </span>
               </Button>

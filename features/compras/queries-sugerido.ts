@@ -5,6 +5,7 @@ export interface SugeridoCompraItem {
   codigo_interno: string;
   nombre_comercial: string;
   concentracion?: string;
+  laboratorio_id?: string;
   laboratorio?: string;
   unidad_base: string;
   stock_actual: number;
@@ -57,6 +58,7 @@ export async function obtenerSugeridoCompras(sucursalId?: string): Promise<Suger
         p.codigo_interno,
         p.nombre_comercial,
         p.concentracion,
+        p.laboratorio_id,
         coalesce(lab.nombre, 'Varios') as laboratorio,
         p.unidad_base,
         coalesce(sap.stock_total, 0)::int as stock_actual,
@@ -91,6 +93,7 @@ export async function obtenerSugeridoCompras(sucursalId?: string): Promise<Suger
         codigo_interno: r.codigo_interno,
         nombre_comercial: r.nombre_comercial,
         concentracion: r.concentracion,
+        laboratorio_id: r.laboratorio_id,
         laboratorio: r.laboratorio,
         unidad_base: r.unidad_base,
         stock_actual: stock,

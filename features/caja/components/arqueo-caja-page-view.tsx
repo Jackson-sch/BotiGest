@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Banknote,
@@ -62,6 +63,7 @@ const MONEDAS: DenominacionItem[] = [
 ];
 
 export function ArqueoCajaPageView({ turno, userName }: ArqueoCajaPageViewProps) {
+  const router = useRouter();
   const [cantidades, setCantidades] = React.useState<Record<number, number>>({});
   const [observacion, setObservacion] = React.useState<string>('');
   const [declararVacio, setDeclararVacio] = React.useState<boolean>(false);
@@ -145,6 +147,7 @@ export function ArqueoCajaPageView({ turno, userName }: ArqueoCajaPageViewProps)
           fecha: new Date().toLocaleString('es-PE'),
         });
         toast.success('¡Caja Cuadrada Exacta! Turno cerrado exitosamente.');
+        router.refresh();
       } else if (res.requiereAutorizacion) {
         setDescuadreInfo({
           diferencia: res.diferencia ?? 0,
@@ -225,6 +228,7 @@ export function ArqueoCajaPageView({ turno, userName }: ArqueoCajaPageViewProps)
           fecha: new Date().toLocaleString('es-PE'),
         });
         toast.success('Descuadre autorizado y turno cerrado con registro de auditoría.');
+        router.refresh();
       } else {
         toast.error(res.error || 'No se pudo autorizar el descuadre');
       }
@@ -240,11 +244,18 @@ export function ArqueoCajaPageView({ turno, userName }: ArqueoCajaPageViewProps)
       {/* Barra Superior de Navegación (Oculta al imprimir) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border print:hidden">
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm" className="rounded-xl gap-2 text-xs apple-press-feedback">
-            <Link href="/caja">
-              <ArrowLeft className="h-4 w-4" />
-              <span>Volver a Caja</span>
-            </Link>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              router.push('/caja');
+              router.refresh();
+            }}
+            className="rounded-xl gap-2 text-xs apple-press-feedback"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Volver a Caja</span>
           </Button>
           <div className="h-4 w-[1px] bg-border hidden sm:block" />
           <div>
@@ -358,11 +369,16 @@ export function ArqueoCajaPageView({ turno, userName }: ArqueoCajaPageViewProps)
                   <Printer className="h-4 w-4" />
                   <span>Imprimir Acta de Arqueo</span>
                 </Button>
-                <Button asChild className="rounded-xl gap-2 h-11 px-6 bg-[#0071e3] hover:bg-[#0077ed] text-white apple-press-feedback">
-                  <Link href="/caja">
-                    <span>Ir al Panel de Caja</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    router.push('/caja');
+                    router.refresh();
+                  }}
+                  className="rounded-xl gap-2 h-11 px-6 bg-[#0071e3] hover:bg-[#0077ed] text-white apple-press-feedback"
+                >
+                  <span>Ir al Panel de Caja</span>
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </Card>

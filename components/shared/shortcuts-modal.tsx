@@ -221,6 +221,26 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
                   Alt + C
                 </kbd>
               </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1c1c1f] border border-border/60 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-foreground block">Emitir Comprobante</span>
+                  <span className="text-[10px] text-muted-foreground">Confirmar cobro en modal</span>
+                </div>
+                <kbd className="px-2 py-1 rounded bg-background border border-border/80 text-xs font-mono font-bold text-[#0071e3] shadow-xs">
+                  Enter
+                </kbd>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1c1c1f] border border-border/60 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-foreground block">Métodos de Pago</span>
+                  <span className="text-[10px] text-muted-foreground">1: Efectivo, 2: Yape, 3: Tarjeta</span>
+                </div>
+                <kbd className="px-2 py-1 rounded bg-background border border-border/80 text-xs font-mono font-bold text-foreground shadow-xs">
+                  Alt + 1..3
+                </kbd>
+              </div>
             </div>
           </div>
         </div>
