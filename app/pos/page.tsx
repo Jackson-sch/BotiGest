@@ -8,6 +8,7 @@ import {
   PosCart,
   PosRecipeModal,
   PosCheckoutModal,
+  PosShortcutsFooter,
   obtenerProductosPos,
   obtenerTurnoActivo,
 } from '@/features/pos';
@@ -115,6 +116,9 @@ async function PosContent() {
           <PosCart hasActiveTurn={Boolean(turno)} />
         </aside>
       </main>
+
+      {/* Barra Inferior Tenue de Atajos para el Cajero */}
+      <PosShortcutsFooter />
 
       {/* Modales de Receta y Cobro */}
       <PosRecipeModal />

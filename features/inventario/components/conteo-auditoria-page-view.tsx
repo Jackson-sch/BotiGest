@@ -418,11 +418,12 @@ export function ConteoAuditoriaPageView({ toma, itemsIniciales }: ConteoAuditori
                           {item.stock_fisico}
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-1.5 sm:gap-2">
                           <button
                             type="button"
                             onClick={() => handleIncrementar(item.id, -1)}
-                            className="h-8 w-8 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold flex items-center justify-center text-sm"
+                            className="min-h-[44px] min-w-[44px] h-11 w-11 rounded-xl bg-muted/80 hover:bg-muted active:scale-95 text-foreground font-bold flex items-center justify-center text-lg apple-press-feedback transition-transform cursor-pointer select-none"
+                            title="Restar 1 unidad"
                           >
                             -
                           </button>
@@ -431,12 +432,13 @@ export function ConteoAuditoriaPageView({ toma, itemsIniciales }: ConteoAuditori
                             min="0"
                             value={item.stock_fisico}
                             onChange={(e) => handleUpdateStockFisico(item.id, e.target.value)}
-                            className="w-20 h-9 text-center font-mono font-bold text-base rounded-xl border-[#0071e3]/40 focus:border-[#0071e3]"
+                            className="w-24 h-11 text-center font-mono font-bold text-lg rounded-xl border-[#0071e3]/40 focus:border-[#0071e3] shadow-xs"
                           />
                           <button
                             type="button"
                             onClick={() => handleIncrementar(item.id, 1)}
-                            className="h-8 w-8 rounded-lg bg-[#0071e3]/10 hover:bg-[#0071e3]/20 text-[#0071e3] font-bold flex items-center justify-center text-sm"
+                            className="min-h-[44px] min-w-[44px] h-11 w-11 rounded-xl bg-[#0071e3]/15 hover:bg-[#0071e3]/25 active:scale-95 text-[#0071e3] dark:text-[#2997ff] font-bold flex items-center justify-center text-lg apple-press-feedback transition-transform cursor-pointer select-none"
+                            title="Sumar 1 unidad"
                           >
                             +
                           </button>

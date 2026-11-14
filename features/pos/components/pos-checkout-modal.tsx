@@ -74,6 +74,12 @@ export function PosCheckoutModal() {
         if (nombreEncontrado) {
           setNomCliente(nombreEncontrado);
           toast.success(`Datos obtenidos: ${nombreEncontrado}`);
+          if (metodo === 'efectivo') {
+            setTimeout(() => {
+              montoInputRef.current?.focus();
+              montoInputRef.current?.select();
+            }, 100);
+          }
         }
       } else {
         toast.info(res.error || 'No se obtuvieron datos automáticos. Ingrese el nombre manualmente.');
@@ -83,17 +89,25 @@ export function PosCheckoutModal() {
     } finally {
       setIsSearchingDoc(false);
     }
-  }, [docCliente, tipo_comprobante]);
+  }, [docCliente, tipo_comprobante, metodo]);
 
-  // Inicializar monto exacto si es efectivo y auto-enfocar para cobrar ágilmente
+  // Inicializar monto y auto-enfocar SOLO al abrir el modal de cobro (evita robar el foco al escribir RUC)
   React.useEffect(() => {
     if (isCheckoutModalOpen) {
       setMontoEfectivo(totales.total.toFixed(2));
       setIsSuccess(false);
       setIsSubmitting(false);
 
+      if (cliente?.numero_documento && !docCliente) {
+        setDocCliente(cliente.numero_documento);
+        setNomCliente(cliente.nombres || '');
+      }
+
       const timer = setTimeout(() => {
-        if (tipo_comprobante === 'factura' && !docCliente) {
+        const needsDoc = tipo_comprobante === 'factura' || totales.total >= 700;
+        const hasDoc = Boolean(cliente?.numero_documento || docCliente);
+
+        if (needsDoc && !hasDoc) {
           docInputRef.current?.focus();
         } else if (metodo === 'efectivo') {
           montoInputRef.current?.focus();
@@ -101,11 +115,12 @@ export function PosCheckoutModal() {
         } else {
           refOperacionInputRef.current?.focus();
         }
-      }, 80);
+      }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, [isCheckoutModalOpen, totales.total, tipo_comprobante, docCliente, metodo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCheckoutModalOpen]);
 
   const vuelto = React.useMemo(() => {
     const pagado = parseFloat(montoEfectivo) || 0;
@@ -294,18 +309,21 @@ export function PosCheckoutModal() {
       if (e.key === 'Enter') {
         const active = document.activeElement;
 
-        // Si está en el input de documento y tiene longitud completa
+        // Si está en el input de documento (RUC / DNI)
         if (active === docInputRef.current) {
+          e.preventDefault();
           const isRuc = tipo_comprobante === 'factura';
-          if ((isRuc && docCliente.length === 11) || (!isRuc && docCliente.length === 8)) {
-            e.preventDefault();
+          const requiredLen = isRuc ? 11 : 8;
+          if (docCliente.length === requiredLen) {
             handleBuscarDoc(docCliente);
             if (metodo === 'efectivo') {
               montoInputRef.current?.focus();
               montoInputRef.current?.select();
             }
-            return;
+          } else {
+            toast.warning(`El ${isRuc ? 'RUC' : 'DNI'} debe tener ${requiredLen} dígitos.`);
           }
+          return;
         }
 
         e.preventDefault();

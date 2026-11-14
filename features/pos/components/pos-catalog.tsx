@@ -134,6 +134,57 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
     });
   }, [activeQuery, initialProducts, catalogTab]);
 
+  // Principios Activos (DCI) populares o sugeridos disponibles en stock
+  const dciSugerencias = React.useMemo(() => {
+    const q = activeQuery.toLowerCase().trim();
+    const dcisConStock = new Map<string, number>();
+
+    for (const p of initialProducts) {
+      if (p.stock_disponible_base > 0 && p.nombre_generico && p.nombre_generico.trim() !== '') {
+        const dci = p.nombre_generico.trim();
+        dcisConStock.set(dci, (dcisConStock.get(dci) || 0) + 1);
+      }
+    }
+
+    if (!q) {
+      return Array.from(dcisConStock.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([dci]) => dci);
+    }
+
+    const tokens = q.split(/\s+/).filter((t) => t.length > 2);
+    const matches: string[] = [];
+
+    for (const [dci] of dcisConStock.entries()) {
+      const dciLower = dci.toLowerCase();
+      if (tokens.some((token) => dciLower.includes(token))) {
+        matches.push(dci);
+      }
+    }
+
+    if (matches.length > 0) {
+      return matches.slice(0, 6);
+    }
+
+    return Array.from(dcisConStock.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([dci]) => dci);
+  }, [initialProducts, activeQuery]);
+
+  // Si hay coincidencias en todo el catálogo (incluyendo agotados)
+  const coincidenciasEnAgotados = React.useMemo(() => {
+    if (!activeQuery) return 0;
+    const q = activeQuery.toLowerCase().trim();
+    return initialProducts.filter((p) => {
+      const matchName = p.nombre_comercial.toLowerCase().includes(q);
+      const matchGen = p.nombre_generico?.toLowerCase().includes(q) ?? false;
+      const matchCod = p.codigo_interno.toLowerCase().includes(q);
+      return (matchName || matchGen || matchCod) && p.stock_disponible_base <= 0;
+    }).length;
+  }, [initialProducts, activeQuery]);
+
   // Renderizado progresivo (chunks de 24) para mantener la UI ágil incluso con cientos o miles de productos
   const displayedProducts = React.useMemo(
     () => filteredProducts.slice(0, visibleCount),
@@ -715,31 +766,89 @@ export function PosCatalog({ initialProducts = [] }: PosCatalogProps) {
       {/* Grid de Productos con Apple Design */}
       <div className="flex-1 overflow-y-auto pr-1 space-y-3">
         {filteredProducts.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-center p-6 rounded-2xl apple-glass border border-dashed border-border gap-2">
-            <Pill className="h-10 w-10 text-muted-foreground/50 mb-1" />
-            <p className="text-sm font-medium text-foreground">
-              {catalogTab !== 'todos'
-                ? 'No se encontraron productos con stock disponible'
-                : 'No se encontraron medicamentos'}
-            </p>
-            <p className="text-xs text-muted-foreground max-w-sm">
-              {catalogTab !== 'todos'
-                ? 'El producto podría estar agotado en este momento o sin ventas registradas.'
-                : 'Verifica el nombre o código de barras ingresado.'}
-            </p>
-            {catalogTab !== 'todos' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setCatalogTab('todos');
-                  setVisibleCount(PAGE_SIZE);
-                }}
-                className="mt-2 text-xs rounded-xl border-dashed"
-              >
-                Buscar en todo el catálogo (incluyendo agotados)
-              </Button>
+          <div className="py-10 px-6 flex flex-col items-center justify-center text-center rounded-3xl apple-glass border border-dashed border-border/80 gap-3 max-w-xl mx-auto my-6">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-1 shadow-xs">
+              <Pill className="h-6 w-6" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-foreground tracking-apple-title">
+                {activeQuery
+                  ? `No hay coincidencias para "${activeQuery}"`
+                  : catalogTab !== 'todos'
+                  ? 'No hay productos con stock disponible en esta vista'
+                  : 'No se encontraron medicamentos'}
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                {coincidenciasEnAgotados > 0
+                  ? `Existen ${coincidenciasEnAgotados} producto(s) en el catálogo general que coinciden pero están actualmente sin stock físico.`
+                  : 'Verifica la ortografía o intenta buscar por Principio Activo (DCI) para encontrar alternativas farmacéuticas.'}
+              </p>
+            </div>
+
+            {/* Sugerencias de Principio Activo (DCI) con 1 clic */}
+            {dciSugerencias.length > 0 && (
+              <div className="w-full pt-3 pb-1 border-t border-border/40 mt-1 space-y-2">
+                <span className="text-[11px] font-semibold text-muted-foreground flex items-center justify-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Sugerencias por Principio Activo (DCI) con stock disponible:
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  {dciSugerencias.map((dci) => (
+                    <button
+                      key={dci}
+                      type="button"
+                      onClick={() => {
+                        handleSearchChange(dci);
+                        searchInputRef.current?.focus();
+                        toast.info(`Filtrando por DCI: ${dci}`);
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-all apple-press-feedback cursor-pointer border border-primary/20"
+                    >
+                      {dci}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
+
+            {/* Acciones Rápidas */}
+            <div className="flex items-center gap-2 flex-wrap justify-center pt-2">
+              {activeQuery && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleSearchChange('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="rounded-xl text-xs gap-1.5 apple-press-feedback"
+                >
+                  Limpiar búsqueda
+                  <kbd className="px-1 py-0.2 rounded bg-muted text-[10px] font-mono">Esc</kbd>
+                </Button>
+              )}
+
+              {catalogTab !== 'todos' && (
+                <Button
+                  variant={coincidenciasEnAgotados > 0 ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setCatalogTab('todos');
+                    setVisibleCount(PAGE_SIZE);
+                  }}
+                  className={`rounded-xl text-xs gap-1.5 ${
+                    coincidenciasEnAgotados > 0
+                      ? 'bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-sm'
+                      : 'border-dashed'
+                  }`}
+                >
+                  {coincidenciasEnAgotados > 0
+                    ? `Ver ${coincidenciasEnAgotados} en catálogo general (Agotados)`
+                    : 'Buscar en todo el catálogo (incluye agotados)'}
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

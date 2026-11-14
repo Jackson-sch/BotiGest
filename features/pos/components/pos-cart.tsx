@@ -32,6 +32,7 @@ import { formatMoney } from '@/lib/utils';
 import { usePosStore, type CartItem } from '@/stores/use-pos-store';
 import { PosHeldCartsModal } from './pos-held-carts-modal';
 import { toast } from 'sonner';
+import type { TipoComprobante } from '@/types/database';
 
 interface PosCartProps {
   hasActiveTurn?: boolean;
@@ -51,6 +52,9 @@ export function PosCart({ hasActiveTurn = true }: PosCartProps) {
     receta,
     setRecetaModalOpen,
     setCheckoutModalOpen,
+    isCheckoutModalOpen,
+    isRecetaModalOpen,
+    isHeldCartsModalOpen,
     getTotales,
     heldCarts,
     initHeldCarts,
@@ -107,9 +111,54 @@ export function PosCart({ hasActiveTurn = true }: PosCartProps) {
     setCheckoutModalOpen(true);
   };
 
-  // Atajos de teclado: F4 o Ctrl+Enter para cobrar, F6 para poner en espera / ver tickets, Alt+C para vaciar
+  // Atajos de teclado: F3 (alternar comprobante), Alt+B/F/N o Alt+1..3, F4 (cobrar), F6 (pausar), Alt+C (vaciar)
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Si hay un modal abierto (checkout, receta o multiticket), no interceptar atajos de carrito
+      if (isCheckoutModalOpen || isRecetaModalOpen || isHeldCartsModalOpen) {
+        return;
+      }
+
+      // F3: Alternar cíclicamente el tipo de comprobante (Boleta -> Factura -> Nota Venta -> Boleta)
+      if (e.key === 'F3') {
+        e.preventDefault();
+        const cycleMap: Partial<Record<TipoComprobante, { next: TipoComprobante; label: string }>> = {
+          boleta: { next: 'factura', label: 'Factura' },
+          factura: { next: 'nota_venta', label: 'Nota Venta' },
+          nota_venta: { next: 'boleta', label: 'Boleta' },
+        };
+        const target = cycleMap[tipo_comprobante] || { next: 'boleta', label: 'Boleta' };
+        setTipoComprobante(target.next);
+        toast.success(`Comprobante: ${target.label}`, {
+          id: 'pos-comprobante-switch',
+          duration: 1200,
+        });
+        return;
+      }
+
+      // Atajos directos con Alt (Alt+B: Boleta, Alt+F: Factura, Alt+N: Nota Venta, o Alt+1..3)
+      if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'b' || e.code === 'KeyB' || key === '1' || e.code === 'Digit1') {
+          e.preventDefault();
+          setTipoComprobante('boleta');
+          toast.success('Comprobante: Boleta', { id: 'pos-comprobante-switch', duration: 1200 });
+          return;
+        }
+        if (key === 'f' || e.code === 'KeyF' || key === '2' || e.code === 'Digit2') {
+          e.preventDefault();
+          setTipoComprobante('factura');
+          toast.success('Comprobante: Factura', { id: 'pos-comprobante-switch', duration: 1200 });
+          return;
+        }
+        if (key === 'n' || e.code === 'KeyN' || key === '3' || e.code === 'Digit3') {
+          e.preventDefault();
+          setTipoComprobante('nota_venta');
+          toast.success('Comprobante: Nota Venta', { id: 'pos-comprobante-switch', duration: 1200 });
+          return;
+        }
+      }
+
       // F4 o Ctrl+Enter: Cobro
       if ((e.key === 'F4' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter'))) {
         e.preventDefault();
@@ -149,7 +198,17 @@ export function PosCart({ hasActiveTurn = true }: PosCartProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items.length, hasActiveTurn, heldCarts.length, clearCart]);
+  }, [
+    items.length,
+    hasActiveTurn,
+    heldCarts.length,
+    clearCart,
+    tipo_comprobante,
+    setTipoComprobante,
+    isCheckoutModalOpen,
+    isRecetaModalOpen,
+    isHeldCartsModalOpen,
+  ]);
 
   return (
     <div className="w-full lg:w-96 flex flex-col h-full apple-glass-sheet rounded-3xl p-5 border border-black/[0.06] dark:border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
@@ -211,23 +270,47 @@ export function PosCart({ hasActiveTurn = true }: PosCartProps) {
         </div>
       </div>
 
-      {/* Tipo de Comprobante SUNAT */}
+      {/* Tipo de Comprobante SUNAT con acceso por teclado */}
       <div className="pt-3 pb-2">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5 mb-1.5">
+          <span className="font-medium text-foreground/85">Comprobante</span>
+          <span className="text-[10px] font-mono text-muted-foreground/75 flex items-center gap-1">
+            <kbd className="px-1.5 py-0.2 rounded bg-black/[0.05] dark:bg-white/[0.08] text-[9px] font-bold border border-border/70">
+              F3
+            </kbd>
+            alternar
+          </span>
+        </div>
         <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.06]">
-          {(['boleta', 'factura', 'nota_venta'] as const).map((tipo) => (
-            <button
-              key={tipo}
-              type="button"
-              onClick={() => setTipoComprobante(tipo)}
-              className={`py-1.5 text-xs font-medium rounded-lg capitalize transition-all duration-150 apple-press-feedback ${
-                tipo_comprobante === tipo
-                  ? 'bg-white dark:bg-white/10 text-[#0071e3] dark:text-[#2997ff] shadow-xs font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tipo === 'nota_venta' ? 'Nota Venta' : tipo}
-            </button>
-          ))}
+          {[
+            { id: 'boleta' as const, label: 'Boleta', shortcut: 'Alt+B' },
+            { id: 'factura' as const, label: 'Factura', shortcut: 'Alt+F' },
+            { id: 'nota_venta' as const, label: 'Nota Venta', shortcut: 'Alt+N' },
+          ].map((t) => {
+            const active = tipo_comprobante === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTipoComprobante(t.id)}
+                className={`py-1.5 px-1 text-xs font-medium rounded-lg transition-all duration-150 apple-press-feedback flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 cursor-pointer ${
+                  active
+                    ? 'bg-white dark:bg-white/10 text-[#0071e3] dark:text-[#2997ff] shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title={`${t.label} [${t.shortcut} o F3]`}
+              >
+                <span>{t.label}</span>
+                <span
+                  className={`text-[9px] font-mono transition-opacity ${
+                    active ? 'opacity-90 font-bold text-[#0071e3] dark:text-[#2997ff]' : 'opacity-40'
+                  }`}
+                >
+                  {t.shortcut}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

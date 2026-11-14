@@ -188,6 +188,22 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
 
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1c1c1f] border border-border/60 flex items-center justify-between">
                 <div>
+                  <span className="text-xs font-semibold text-foreground block">Tipo de Comprobante</span>
+                  <span className="text-[10px] text-muted-foreground">Alternar Boleta, Factura o Nota Venta</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 rounded bg-background border border-border/80 text-xs font-mono font-bold text-primary shadow-xs">
+                    F3
+                  </kbd>
+                  <span className="text-[10px] text-muted-foreground">o</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-background border border-border/80 text-[10px] font-mono font-bold text-foreground shadow-xs">
+                    Alt+B/F/N
+                  </kbd>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#1c1c1f] border border-border/60 flex items-center justify-between">
+                <div>
                   <span className="text-xs font-semibold text-foreground block">Cobrar / Finalizar Venta</span>
                   <span className="text-[10px] text-muted-foreground">Abre modal de pago y boleta</span>
                 </div>

@@ -120,6 +120,22 @@ export function TomaInventarioView({ tomas, activeSucursalId }: TomaInventarioVi
     );
   };
 
+  const handleIncrementar = (itemId: string, delta: number) => {
+    setItemsConteo((prev) =>
+      prev.map((it) => {
+        if (it.id === itemId) {
+          const fisico = Math.max(0, it.stock_fisico + delta);
+          return {
+            ...it,
+            stock_fisico: fisico,
+            diferencia: fisico - it.stock_sistema,
+          };
+        }
+        return it;
+      })
+    );
+  };
+
   const handleUpdateJustificacion = (itemId: string, justif: string) => {
     setItemsConteo((prev) =>
       prev.map((it) => (it.id === itemId ? { ...it, justificacion: justif } : it))
@@ -405,15 +421,33 @@ export function TomaInventarioView({ tomas, activeSucursalId }: TomaInventarioVi
                             </td>
                             <td className="px-3 py-2.5 text-center">
                               {esCerrada ? (
-                                <span className="font-mono font-bold">{item.stock_fisico}</span>
+                                <span className="font-mono font-bold text-base">{item.stock_fisico}</span>
                               ) : (
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={item.stock_fisico}
-                                  onChange={(e) => handleUpdateStockFisico(item.id, e.target.value)}
-                                  className="w-24 h-8 text-center font-mono font-bold text-sm mx-auto rounded-lg border-[#0071e3]/40 focus:border-[#0071e3]"
-                                />
+                                <div className="flex items-center justify-center gap-1 sm:gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleIncrementar(item.id, -1)}
+                                    className="min-h-[44px] min-w-[44px] h-11 w-11 rounded-xl bg-muted/80 hover:bg-muted active:scale-95 text-foreground font-bold flex items-center justify-center text-lg apple-press-feedback transition-transform cursor-pointer select-none"
+                                    title="Restar 1 unidad"
+                                  >
+                                    -
+                                  </button>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={item.stock_fisico}
+                                    onChange={(e) => handleUpdateStockFisico(item.id, e.target.value)}
+                                    className="w-20 h-11 text-center font-mono font-bold text-lg mx-auto rounded-xl border-[#0071e3]/40 focus:border-[#0071e3] shadow-xs"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleIncrementar(item.id, 1)}
+                                    className="min-h-[44px] min-w-[44px] h-11 w-11 rounded-xl bg-[#0071e3]/15 hover:bg-[#0071e3]/25 active:scale-95 text-[#0071e3] dark:text-[#2997ff] font-bold flex items-center justify-center text-lg apple-press-feedback transition-transform cursor-pointer select-none"
+                                    title="Sumar 1 unidad"
+                                  >
+                                    +
+                                  </button>
+                                </div>
                               )}
                             </td>
                             <td className="px-3 py-2.5 text-center">
